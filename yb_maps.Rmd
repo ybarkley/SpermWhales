@@ -1,0 +1,197 @@
+---
+title: "Whale Maps for Yvonne"
+output: html_notebook
+---
+```{text}
+Hi Maia,
+Here are the spreadsheets with locations for sperm whales and Pseudorca. I'd like the maps to look similar to this one (from Bradford 2015 tech memo 47). Is it possible to have the map on this scale where it is zoomed into the archipelago more? I like how the latitude and longitude are listed on the outsides of the axes to show where everything is.
+Inline image 1
+
+
+
+
+The Pseudorca map will be more colorful. 
+Each population (pel, nwhi, mhi) will get a color. pel = pink, nwhi = blue, mhi = green (or if a different color combo looks better, I trust your judgment)
+I'd also like the recorder for each detection labeled using a shape. 
+towed array = medium dot
+fostex = filled square
+harp = filled triangle
+pmrf = X
+So for 'pel' detections, they are all going to be pink dots.
+'nwhi' will have blue dots, blue Xs
+'mhi' will have green dots, green squares, and green triangles
+Are there any details I missed? Let me know. I hope the map can be scaled to be mostly the archipelago instead of the central North Pacific. The EEZ boundaries don't need to be included right now. I'll ask Amanda how to plot those for later.
+  
+thanks a million!
+```
+
+
+
+# Load Packages
+```{r}
+library(geoR)
+library(fields)
+library(sp)
+library(maptools)
+library(rgdal)
+library(classInt)
+library(lattice)
+library(zoo)
+library(ggplot2)
+library(Rmisc)
+library(MuMIn)
+library(matrixStats)
+```
+
+# Sperm Whale Map
+
+The sperm whale map will be simpler. There are more sperm whale detections overall because I added all acoustic detections that were visually sighted into the dataset. The 'sighted' column in 'Sperm_Whale_AcLocations_EEZonly.csv'  indicates whether the acoustic detection was sighted (= '1' ) or not sighted (='0'). That will help determine the symbol for each detection.
+Label all sighted acoustic detections with a black 'X'
+Label all non-sighted acoustic detection with a filled black dot.  (I thought about coloring the X's and dots also by cruise like before, but I think that would be too busy. What do you think? That would make the legend complicated.)
+The legend can go wherever is easiest.
+
+## Load and Clean Data
+```{r}
+## read in data
+swdf0 = read.csv("G:/Sperm_Whale_AcLocations_EEZonly.csv")
+plot(1, type = 'n', xlim = c(150,180), ylim = c(15,32))
+with(swdf0, plot(latitude~longitude))
+
+## recenter coordinates
+swdf0$longitude2 = ifelse(swdf0$E_W == 'E', swdf0$longitude*-1, swdf0$longitude)
+
+## make a new column with text describing sighted, unsighted
+swdf0$sighted2 = ifelse(swdf0$sighted == '0', "Not Sighted", "Sighted")
+
+## make a new dataframe with only useful information - may not use cruise number
+swdf = with(swdf0, data.frame('lat' = latitude, 'lon' = longitude, 'lon2' = longitude2, 'sighted' = sighted2, 'cruisenum' = Cruise.Number))
+```
+
+## Get Hawaii Polygon
+
+You will need to download the data from the US Census Bureau Tiger/Line Shapefiles web interface: https://www.census.gov/geo/maps-data/data/tiger-line.html Select year = 2016 (or the most recent year available) and Layertype = States (and equivalent).  Metadata are also available in the .xml files included in the download. Technical details on the files in general are available in the technical documentation on the website.
+ Once you have downloaded and extracted the shapefile to your working directory
+ Load the file.  You will only need the .shp file for R plotting.
+
+```{r}
+us<-readShapePoly("G:/tl_2016_us_state.shp")
+hawaii<-subset(us,NAME=="Hawaii")
+hawaiiMap<-fortify(hawaii)
+```
+
+## Plot the map with ggplot
+```{r}
+ggplot() +  ## this just makes the background white
+  theme_bw() +
+  ## remove the legend title, x and y labels, and gridlines in "theme"
+  theme(
+  legend.title = element_blank(),
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid = element_blank(),
+  legend.position = c(0.1,0.1)
+  ) +
+  ## customize the x labels to have the degree symbol
+  scale_x_continuous(
+  breaks = seq(-180, -150, 10),
+  labels = c(expression('180' *  ~ degree), 
+             expression('170' *  ~ degree * W), 
+             expression('160' *  ~ degree * W), 
+             expression('150' *  ~ degree * W ))
+  ) +
+  
+  scale_y_continuous(
+  limits = c(15,31),
+  breaks = seq(15, 30, 5),
+  labels = c(expression('15' *  ~ degree * N), 
+             expression('20' *  ~ degree * N), 
+             expression('25' *  ~ degree * N), 
+             expression('30' *  ~ degree * N ))
+  ) +
+  ## indicate which shapes you want (do ?pch to see options, they are coded by number)
+  scale_shape_manual(values = c(4,19))+
+  
+  ## add the map downloaded above
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'skyblue') +
+  coord_fixed(1) +
+  
+  ## now add the data points
+  geom_point(data = swdf, aes(
+  x = lon2,
+  y = lat,
+  pch = factor(sighted)
+  ))
+
+```
+
+# Pseudorca map
+The Pseudorca map will be more colorful. 
+Each population (pel, nwhi, mhi) will get a color. pel = pink, nwhi = blue, mhi = green (or if a different color combo looks better, I trust your judgment)
+I'd also like the recorder for each detection labeled using a shape. 
+
+fostex = filled square
+harp = filled triangle
+pmrf = X
+towed array = medium dot
+So for 'pel' detections, they are all going to be pink dots.
+'nwhi' will have blue dots, blue Xs
+'mhi' will have green dots, green squares, and green triangles
+
+## Load and clean data
+```{r}
+psdf = read.csv("G:/Pseudorca_AcLocations.csv")
+
+# ## recenter coordinates
+psdf$longitude2 = ifelse(psdf0$longitude > 0, psdf0$longitude*-1, psdf0$longitude)
+
+## make a new column with text describing sighted, unsighted
+# swdf0$sighted2 = ifelse(swdf0$sighted == '0', "Not Sighted", "Sighted")
+
+## make a new dataframe with only useful information - may not use cruise number
+# swdf = with(swdf0, data.frame('lat' = latitude, 'lon' = longitude, 'lon2' = longitude2, 'sighted' = sighted2, 'cruisenum' = Cruise.Number))
+
+ggplot() +  ## this just makes the background white
+  theme_bw() +
+  ## remove the legend title, x and y labels, and gridlines
+  theme(
+  legend.title = element_blank(),
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid = element_blank(),
+  legend.position = c(0.1,0.3),
+  legend.background = element_rect(fill = NA)
+  ) +
+  
+  scale_x_continuous(
+  breaks = seq(-180, -150, 10),
+  labels = c(expression('180' *  ~ degree), 
+             expression('170' *  ~ degree * W), 
+             expression('160' *  ~ degree * W), 
+             expression('150' *  ~ degree * W ))
+  ) +
+  
+  scale_y_continuous(
+  limits = c(15,31),
+  breaks = seq(15, 30, 5),
+  labels = c(expression('15' *  ~ degree * N), 
+             expression('20' *  ~ degree * N), 
+             expression('25' *  ~ degree * N), 
+             expression('30' *  ~ degree * N ))
+  ) +
+  
+  ## indicate which shapes you want (do ?pch to see options)
+  scale_shape_manual(values = c(15,17,4,19))+
+  scale_color_manual(values = c('seagreen','blue','maroon')) +
+  ## add the map downloaded abouve
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'skyblue') +
+  coord_fixed(1) +
+  
+  ## now add the data points
+  geom_point(data = psdf, aes(
+  x = longitude2,
+  y = latitude,
+  pch = factor(recorder),
+  col = factor(population)
+  ))
+```
+
