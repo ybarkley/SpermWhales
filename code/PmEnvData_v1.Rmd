@@ -1,0 +1,195 @@
+---
+title: "DASBR project"
+author: "Melanie Abecassis"
+date: "06/04/2019"
+output:
+  html_document:
+    highlight: pygments
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+    tod_depth: 3
+  html_notebook:
+    toc: yes
+    tod_depth: 3
+    toc_float: 
+      collapsed: false
+      smooth_scroll: true
+  pdf_document:
+    toc: yes
+---
+
+<script>
+$(document).ready(function() {
+  $items = $('div#TOC li');
+  $items.each(function(idx) {
+    num_ul = $(this).parentsUntil('#TOC').length;
+    $(this).css({'text-indent': num_ul * 10, 'padding-left': 0});
+  });
+
+});
+</script>
+
+#### Revised on: `r format(Sys.time(), "%d %B, %Y")`
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=14, fig.height=7, warning=FALSE,message=FALSE,tidy=TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+# knitr::opts_knit$set(root.dir=normalizePath(".."))
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file()) #allows for finding dir different than the code's dir
+```
+
+
+```{r message=F}
+library(lubridate)
+library(tidyverse)
+library(ncdf4)
+library(httr)
+
+```
+
+# 1. load detection dataset
+```{r message=F}
+# T=read.csv('DS1_ST-1_PAM20014c_Events_Loc.csv',header=TRUE)
+# T = read_csv('C:\\Users\\yvers\\Documents\\CHP 2\\data/SpermiesBath.csv')
+# T = filter(T, T$Survey.Number != 1641 & T$Survey.Number != 1642)
+
+T = read_csv('./output/Spermies.csv') #C:\\Users\\yvers\\Documents\\CHP 2\\data/SpermiesBath.csv')
+
+T$UTC2 = mdy_hms(T$UTC, truncated = 2)
+T$lon2 = ifelse(T$lon <1, T$lon + 360, T$lon)
+lon=T$lon2
+lat=T$lat
+dates=T$UTC2
+```
+
+# 2. Extract SST information for each detection.
+
+Note, most datasets on OceanWatch ERDDAP server have longitudes between 0 and 360? to make it easier to download the data across the dateline. (FYI, if you use this script for other regions, you might need to transform your longitudes).
+```{r }
+
+# https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_2day.csv?sst[(2013-05-10T00:00:00Z):1:(2013-06-10T00:00:00Z)][(15):1:(32)][(177):1:(210)]
+sst=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_2day.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst=rbind(sst,new)
+}
+sst=sst[-1,]
+names(sst) = c("date", "matched_lat", "matched_lon", "matched_sst")
+# print(sst)
+
+
+# sst2010: might need to use weekly...since there aren't any 2-day data for 2010
+sst2010=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_2day.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst2010=rbind(sst2010,new)
+}
+sst2010=sst2010[-1,]
+names(sst2010) = c("date", "matched_lat", "matched_lon", "matched_sst")
+
+
+```
+
+```{r}
+
+sstblnd = rep(NA,4)
+for (i in 1:length(lon)) {
+
+url = paste("https://www.ncei.noaa.gov/erddap/griddap/ncdc_oisst_v2_avhrr_prelim_by_time_zlev_lat_lon.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    sstblnd=rbind(sstblnd,new)
+
+    
+}
+
+https://www.ncei.noaa.gov/erddap/griddap/ncdc_oisst_v2_avhrr_prelim_by_time_zlev_lat_lon.csv?sst[(2019-11-24T00:00:00Z):1:(2019-11-24T00:00:00Z)][(0.0):1:(0.0)][(-89.875):1:(89.875)][(0.125):1:(359.875)]    
+```
+
+
+
+#now maybe map the data points for each sst?
+
+YB Effed this up
+```{r }
+#monthly chla
+lon=T$lon
+chl_m=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_69ee_7d0d_74e6.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    chl_m=rbind(chl_m,new)
+}
+chl_m=chl_m[-1,]
+names(chl_m) = c("date", "matched_lat", "matched_lon", "matched_chlm")
+
+```
+
+```{r}
+#8-day chla
+
+lon=T$lon2
+chl_8=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_chla_8d_2018_0.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    chl_8=rbind(chl_8,new)
+}
+chl_8=chl_8[-1,]
+names(chl_8) = c("date", "matched_lat", "matched_lon", "matched_chl8")
+
+https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_chla_8d_2018_0.csv?chlor_a[(2019-12-19T12:00:00Z):1:(2019-12-19T12:00:00Z)][(89.97916):1:(-89.97918)][(0.02083333):1:(359.9792)],palette[(2019-12-19T12:00:00Z):1:(2019-12-19T12:00:00Z)][(89.97916):1:(-89.97918)][(0.02083333):1:(359.9792)]
+
+https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_chla_8d_2018_0.csv?chlor_a[(2019-12-19T12:00:00Z):1:(2019-12-19T12:00:00Z)][(89.97916):1:(-89.97918)][(0.02083333):1:(359.9792)]
+```
+
+
+
+```{r}
+#Dissolved oxygen, this chunk doesn't work yet
+do <- gzfile('./data/DisOxy-wfig1581301677.4106.csv.gz', 'rt')
+do <- read_csv('./data/DisOxy-wfig1581301677.4106.csv')
+```
+
+
+# 3. Extract data for chlorophyll-a concentration
+
+There are a few options for chlorophyll, but these datasets are very affected by cloud cover (lots of missing data).
+The daily data is available here:  
+https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_daily.graph  
+  
+If it's too gappy, you might need to use 8-day or monthly data:  
+8-day: https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_weekly.graph  
+monthly: https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_monthly.graph  
+  
+You just need to change the url in the script above.
+
+# 4. Wind data
+
+http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.graph
+
+# 5. Other data:
+
+A good start might be the HYCOM model:
+https://coastwatch.pfeg.noaa.gov/erddap/griddap/hycom_GLBa008_tdyx.graph  
+This has data from 2008 to Nov. 2018 for temperature, salinity and currents at 41 different depths.

@@ -1,0 +1,167 @@
+---
+title: "Sperm Whale Tidy Data"
+author: "Yvonne Barkley"
+date: "2/7/2020"
+output: html_document
+---
+This code is also saved in 'MergeCSVs.Rmd' in the CODE folder. It is the main script for dealing with the output from the MATLAB localizer.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file()) #allows for finding dir different than the code's dir
+
+```
+
+
+```{r}
+# library(dplyr)
+library(readr)
+library(stringr)
+library(tidyverse)
+```
+
+
+Tidy up the sperm whale data output from MATLAB using some tidyverse functions and some less elegant brute force manipulation. It works.
+It mainly works in the csv_results dir and binds the localization data from the 'peak1' and 'peak2' folders (related to number of localization peaks). 
+
+
+Localizations can include one or two peaks, which creates a different number of columns from the MATLAB output. 
+First, deal with them separately, then combine them.
+```{r message=F}
+sperm.dat <- read_csv('./data/SpermiesBath.csv')
+sperm.datsub <- sperm.dat[,c(3,5,7)]
+sperm.datsub <- unite(sperm.datsub, "ID", Survey.Number, Acoustic.ID)
+
+#Find which ones have 1 or 2 peaks
+# fpath = ("C:\\Users\\yvers\\Documents\\CHP 2\\data\\Chp2_Localizations\\csv_results")
+# peaks <- list.files(path=fpath,#"C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\Simulation\\2_simdata",
+#   full.names = TRUE, pattern = "*.csv") %>%
+#   lapply(read_csv, col_names=F) %>% 
+#   bind_rows 
+# 
+# #how many separate acoustic encs?
+# nencs1 <- filter(peaks, peaks$X32 == '999')
+# length(unique(nencs1$X31))
+# 
+# nencs2 <- filter(peaks, peaks$X47 == '999')
+# length(unique(nencs2$X46))
+
+```
+
+
+```{r message=F}
+#Now, I manually copied/pasted the separate csvs for each encounter into the peak1 or peak2 folder in 'csv_results' Chp2_Localizations.
+#Some encounters have >1 tracks, that may have different number of peaks, be aware.
+
+# Localizations with one peak
+fpath = ("C:\\Users\\yvers\\Documents\\CHP 2\\data\\Chp2_Localizations\\csv_results\\peak1")
+peak1 <- list.files(path=fpath,#"C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\Simulation\\2_simdata",
+  full.names = TRUE, pattern = "*.csv") %>%
+  lapply(read_csv, col_names=F) %>% 
+  bind_rows 
+#remove 2nd peak
+peak1 = peak1[, -c(11:16,23:28,35:37)]
+
+
+colnames(peak1) <- c('sig', 'dx', 'nmin', 'maxamb', 
+                     'lat_bestA', 'lon_bestA', 
+                     'lat_minA', 'lon_minA','lat_maxA', 'lon_maxA',
+                     'unrotx_bestA', 'unroty_bestA', 'unrotx_minA', 'unroty_minA',
+                     'unrotx_maxA', 'unroty_maxA',
+                     'xbestA', 'xminA', 'xmaxA', 'ybestA', 'yminA', 'ymaxA', 
+                     'zbestA', 'zminA', 'zmaxA', 
+                     'ydiffmin', 'ydiffmax','zdiffmin', 'zdiffmax', 'survey', 'acid',
+                     'sid', 'itrk')
+
+#double-check that the length of peak1 matches length nencs
+peak1 <- unite(peak1, "ID", survey, acid, remove = F)
+
+#add date and time from sperm.dat with MERGE
+peak1 <- merge(peak1, sperm.datsub, by.x='ID', by.y = 'ID')
+
+
+#####CHECK THIS OUT, OVER HERE!!!! ####
+# Since YB went back and redid the straight line encounters to get lat/lons for the second peaks, the encounters that truly only had a single peak need to have the columns with the second peak locations dealt with...THEY ARE DEALT WITH line 63
+
+```
+
+```{r message=F}
+#Localizations with two peaks
+fpath2 = ("C:\\Users\\yvers\\Documents\\CHP 2\\data\\Chp2_Localizations\\csv_results\\peak2")
+peak2 <- list.files(path=fpath2,#"C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\Simulation\\2_simdata",
+  full.names = TRUE, pattern = "*.csv") %>%
+  lapply(read_csv, col_names=F) %>% 
+  bind_rows 
+colnames(peak2) <- c('sig', 'dx', 'nmin', 'maxamb', 
+                     'lat_bestA', 'lon_bestA', 'lat_bestB', 'lon_bestB', 
+                     'lat_minA', 'lon_minA', 'lat_maxA', 'lon_maxA',  
+                     'lat_minB', 'lon_minB', 'lat_maxB', 'lon_maxB',
+                     'unrotx_bestA', 'unroty_bestA', 'unrotx_minA', 'unroty_minA', 'unrotx_maxA', 'unroty_maxA',
+                     'unrotx_bestB', 'unroty_bestB', 'unrotx_minB', 'unroty_minB', 'unrotx_maxB', 'unroty_maxB',
+                     'xbestA', 'xminA', 'xmaxA', 
+                     'ybestA', 'yminA', 'ymaxA', 'ybestB', 'yminB', 'ymaxB',
+                     'zbestA', 'zminA', 'zmaxA', 
+                     'ydiffmin', 'ydiffmax', 'zdiffmin', 'zdiffmax', 'survey', 'acid', 'sid', 'itrk')
+
+peak2 <- unite(peak2, "ID", survey, acid, remove = F)
+
+#add date and time from sperm.dat with MERGE
+peak2 <- merge(peak2, sperm.datsub, by.x='ID', by.y = 'ID')
+
+
+```
+
+```{r}
+
+
+
+pmAll <- bind_rows(peak1, peak2, .id = 'peaks')
+
+# pmAll2 <- unite(pmAll, "ID", survey, acid)
+pmAll2 <- dplyr::select(pmAll, "ID", everything())
+
+#consolidate data in long format
+pmTidy1 <- dplyr::select(pmAll2, 'ID', 'acid', UTC = 'start.time', lat = 'lat_bestA', lon = 'lon_bestA', itrk = 'itrk', survey = 'survey', pdist = 'ybestA')
+pmTidy1$type <- 'best'
+pmTidy1$peak <- 'A'
+
+pmTidy2 <- dplyr::select(pmAll2, 'ID', 'acid', UTC = 'start.time', lat = 'lat_minA', lon = 'lon_minA', itrk = 'itrk', survey = 'survey', pdist = 'yminA')
+pmTidy2$type <- 'min'
+pmTidy2$peak <- 'A'
+
+pmTidy3 <- dplyr::select(pmAll2, 'ID', 'acid', UTC = 'start.time', lat = 'lat_maxA', lon = 'lon_maxA', itrk = 'itrk', survey = 'survey', pdist = 'ymaxA')
+pmTidy3$type <- 'max'
+pmTidy3$peak <- 'A'
+
+pmTidy4 <- dplyr::select(pmAll2, 'ID', 'acid',UTC = 'start.time', lat = 'lat_bestB', lon = 'lon_bestB', itrk = 'itrk', survey = 'survey', pdist = 'ybestB')
+pmTidy4$type <- 'best'
+pmTidy4$peak <- 'B'
+
+pmTidy5 <- dplyr::select(pmAll2, 'ID', 'acid', UTC = 'start.time', lat = 'lat_minB', lon = 'lon_minB', itrk = 'itrk', survey = 'survey', pdist = 'yminB')
+pmTidy4$type <- 'best'
+pmTidy5$type <- 'min'
+pmTidy5$peak <- 'B'
+
+pmTidy6 <- dplyr::select(pmAll2, 'acid', 'ID', UTC = 'start.time', lat = 'lat_maxB', lon = 'lon_maxB', itrk = 'itrk', survey = 'survey', pdist = 'ymaxB')
+pmTidy6$type <- 'max'
+pmTidy6$peak <- 'B'
+
+pmTidy <- bind_rows(pmTidy1, pmTidy2, pmTidy3, pmTidy4, pmTidy5, pmTidy6)
+pmTidy <- dplyr::select(pmTidy, 'survey', 'acid', 'ID', 'UTC', 'peak', 'itrk', 'type', 'lat' ,'lon', 'pdist')
+
+pmTidy <- pmTidy[complete.cases(pmTidy), ]
+
+
+#REMOVE 1303_24, no clicks
+pmTidy <- filter(pmTidy, ID != '1303_24')
+#ALSO NEED TO REMOVE 1705_112 peak A, type max
+pmTidy <- filter(pmTidy, ID != '1705_112' | peak !='A')
+
+
+write.csv(pmTidy,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/Spermies_20200310.csv', row.names = F)
+
+
+#save this on github please 
+```
+
+

@@ -1,0 +1,209 @@
+---
+title: "Tidync Wrangle"
+author: "Yvonne Barkley"
+date: "1/16/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Feb 13, 2020
+Copied and pasted this code into 2_PmEncData.Rmd in the SpermWhales Project in Chp 3 folder to have everything in one place.
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = 'data')
+```
+
+```{r message=F, warning=F}
+library(ncdf4)
+library(reshape2)
+library(dplyr)
+library(lattice)
+library(tidync)
+library(ncmeta)
+library(maps)
+library(stars)
+library(ggplot2)
+library(devtools)
+library(RNetCDF)
+library(raster)
+library(dplyr)
+library(tidyr)
+library(sp)
+library(rgdal)
+library(maptools)
+```
+
+```{r}
+
+wd = setwd("C:\\Users\\yvers\\Documents\\CHP 2\\data\\bathymetry")
+wd = getwd()
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = wd, pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+# Open a connection to the first file in our list
+# nc <- nc_open(paste0(wd, "\\", flist[4]))
+
+nc <- tidync(flist[1])
+print(nc)
+
+#check number of grids and variables
+ncmeta::nc_grids(flist[1])
+ncmeta::nc_vars(flist[1])
+#some grids have >1 variable nested in the grid rows
+ncmeta::nc_grids(flist[1]) %>% tidyr::unnest(cols = c(variables))
+ncmeta::nc_dims(flist[1])
+ncmeta::nc_vars(flist[1])
+
+raster::brick(flist[1], varname = "z") 
+
+ncmeta::nc_axes(flist[1])
+ncmeta::nc_dims(flist[1])
+
+#read the data slice! hyper_tibble selects the depth variable, z, to orient the locations
+lonrange = c(-151, 177)
+latrange = c(15, 32)
+bathy_slice <- flist[1] %>% hyper_filter(lon = lon <= -151 & lon >= -179, 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+#slice for the other side of the dateline
+bathy_slice2 <- flist[1] %>% hyper_filter(lon = lon <= 180 & lon >= 177, 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+
+#combine slices and save
+bathy_tot <- rbind(bathy_slice, bathy_slice2)
+saveRDS(bathy_tot, file = 'bathy_tot.rda')  #saveRDS allows for loading object and naming it something different
+```
+
+```{r}
+
+#load the 30 million + rows bathy data 
+bathy_tot <- readRDS(file = paste0(here('data'), '/', 'bathy_tot.rda'))  #can also name it something different if needed
+
+bathy <- read.csv('./output/Spermies.csv')
+# bathy <- read.csv('1706_LeftOut.csv')
+bathy$wlon <- ifelse(bathy$lon < 1, 180+(bathy$lon+180), 
+                      bathy$lon)
+bathy$wlat <- bathy$lat
+
+#find the bathy data closest to each location
+bath_match = list()
+# lon_match = list()
+for (i in 1:nrow(bathy)){#[1:2])){#length(bathy$wlon)){
+ 
+  lontmp <- which(abs(bathy_tot$lon-bathy$wlon[i]) == min(abs(bathy_tot$lon-bathy$wlon[i])) & 
+                    abs(bathy_tot$lat-bathy$wlat[i]) == min(abs(bathy_tot$lat-bathy$wlat[i])))
+  btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
+  bath_match <- append(bath_match, btmp)
+}
+
+bathy2 <- cbind(bathy, do.call(rbind.data.frame, bath_match))
+bathy2 <- as_tibble(cbind(bathy, do.call(rbind.data.frame, bath_match)))
+
+colnames(bathy2) = c(colnames(bathy), 'bath')
+
+# bathy2 <- bathy2[ , -c(4,9,12,15:38,41)]
+write.csv(bathy2, "C:\\Users\\yvers\\Documents\\CHP 2\\data\\SpermiesBath_LeftOut.csv", row.names = F)
+
+
+```
+
+```{r}
+#Make a raster out of the elevation data to calculate slope using terrain()
+#Using the total slice of bathy data
+
+b <-brick(flist[1], varname = "z")
+
+#b[[1]] #this keeps the data from the 'brick' within a RasterLayer. Otherwise it only has the parameters that describe the RasterLayer without any data included, weird.
+
+#create a raster with aspect and slope values
+aspect=terrain(b[[1]], opt='aspect', unit='degrees', neighbors = '4')
+
+slope = terrain(b[[1]], opt='slope', unit='tangent', neighbors = '4')
+
+r = aspect
+r = slope
+#read the data slice! hyper_tibble selects the depth variable, z, to orient the locations
+
+#if wanting to use a shape file for boundaries
+# us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+# hawaii<-subset(us,NAME=="Hawaii")
+# ex1 <- crop(r, extent(hawaii)) 
+
+#Create 2 different rasters of data to account for the dateline
+ex1 <- crop(r, extent(-180,-151, 15, 32))
+ex2 <- crop(r, extent(177, 180, 15, 32))
+
+x <- list(ex1, ex2)
+names(x) <- c("x", "y")
+x$filename <- 'aspectHI.tif'
+x$overwrite <- TRUE
+aspectHI <- do.call(merge, x)
+
+x <- list(ex1, ex2)
+names(x) <- c("x", "y")
+x$filename <- 'slopeHI.tif'
+x$overwrite <- TRUE
+slopeHI <- do.call(merge, x)
+
+slopedf <- rasterToPoints(slopeHI)
+aspectdf <- rasterToPoints(aspectHI)
+
+#combine different rasters and create matrix
+stack <- stack(slopeHI, aspectHI)
+slp_asp <- rasterToPoints(stack)
+
+colnames(slp_asp) <- 
+
+#find the slope and aspect data closest to each location
+slp_asp_match = list()
+# lon_match = list()
+for (i in 1:nrow(bathy)){#[1:2])){#length(bathy$wlon)){
+ 
+  lontmp <- which(abs(bathy_tot$lon-bathy$wlon[i]) == min(abs(bathy_tot$lon-bathy$wlon[i])) & 
+                    abs(bathy_tot$lat-bathy$wlat[i]) == min(abs(bathy_tot$lat-bathy$wlat[i])))
+  btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
+  slp_asp_match <- append(slp_asp_match, btmp)
+  
+}
+
+
+```
+
+
+```{r}
+#can make a map here with image fxn
+#call the data
+bathy_slice_data <- bathy_slice %>% hyper_array()
+trans <- attr(bathy_slice_data, "transforms")
+
+bathy_slice_data2 <- bathy_slice2 %>% hyper_array()
+trans2 <- attr(bathy_slice_data2, "transforms")
+
+lon <- trans$lon %>% dplyr::filter(selected)
+lat <- trans$lat %>% dplyr::filter(selected)
+
+lon2 <- trans2$lon %>% dplyr::filter(selected) #extra tidbit of longitude across dateline
+
+lon <- rbind(lon, lon2) #include full range of lon
+
+image(lon$lon, lat$lat, bathy_slice_data[[1]])
+maps::map("world2", add = TRUE)
+
+
+
+```
+
+```{r}
+#if using raster data, like with ETOPO
+data_dir <- 'C:\\Users\\yvers\\Documents\\CHP 2\\data\\bathymetry\\'
+setwd(data_dir)
+zz=gzfile('ETOPO1_Bed_g_gdal.grd','rt')
+dat=read.csv(ETOPO1_Bed_g_gdal.grd,header=F) 
+
+
+
+do <- gzfile('./data/DisOxy-wfig1581301677.4106.csv', 'rt')
+
+```
+

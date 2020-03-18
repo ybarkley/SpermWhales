@@ -1,0 +1,1133 @@
+---
+title: "Sperm Whale Habitat Model"
+author: "Yvonne Barkley"
+date: "02/2020"
+output:
+  html_document:
+    highlight: pygments
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+    tod_depth: 3
+  html_notebook:
+    toc: yes
+    tod_depth: 3
+    toc_float: 
+      collapsed: false
+      smooth_scroll: true
+  pdf_document:
+    toc: yes
+---
+
+<script>
+$(document).ready(function() {
+  $items = $('div#TOC li');
+  $items.each(function(idx) {
+    num_ul = $(this).parentsUntil('#TOC').length;
+    $(this).css({'text-indent': num_ul * 10, 'padding-left': 0});
+  });
+
+});
+</script>
+
+#### Revised on: `r format(Sys.time(), "%d %B, %Y")`
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=14, fig.height=7, warning=FALSE,message=FALSE,tidy=TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+# knitr::opts_knit$set(root.dir=normalizePath(".."))
+# knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file()) #doesn't work...should allow for finding dir different than the code's dir
+```
+
+libraries
+```{r message=F}
+library(lubridate)
+library(tidyverse)
+library(ncdf4)
+library(httr)
+library(reshape2)
+library(dplyr)
+library(lattice)
+library(tidync)
+library(ncmeta)
+library(maps)
+library(stars)
+library(ggplot2)
+library(devtools)
+library(RNetCDF)
+library(raster)
+# library(dplyr)
+# library(tidyr)
+library(sp)
+library(rgdal)
+library(maptools)
+library(here) #helps with stupid root dir and accessing subfolders, it's awesome.
+```
+
+# 1. load detection dataset
+```{r message=F}
+# T=read.csv('DS1_ST-1_PAM20014c_Events_Loc.csv',header=TRUE)
+# T = read_csv('C:\\Users\\yvers\\Documents\\CHP 2\\data/SpermiesBath.csv')
+# T = filter(T, T$Survey.Number != 1641 & T$Survey.Number != 1642)
+
+# sw <- read.csv(here('output', 'Spermies_20200304.csv'))
+sw <- read.csv(here('output', 'Spermies_20200310.csv'))
+sw$UTC = mdy_hms(sw$UTC, truncated = 2)
+sw$lon2 = ifelse(sw$lon <1, sw$lon + 360, sw$lon)
+lon=sw$lon2
+lat=sw$lat
+dates=sw$UTC
+
+
+```
+
+Extract SST information for each detection.
+
+Note, most datasets on OceanWatch ERDDAP server have longitudes between 0 and 360? to make it easier to download the data across the dateline. (FYI, if you use this script for other regions, you might need to transform your longitudes).
+
+#SST
+```{r }
+
+#Per Margaret's request, I'm not using blended/modeled SST data.
+
+#SST Monthly Aqua MODIS (masked), 2003-present, 180/-180: -> USING THIS DATASET, NO NAs, mostly correct compared to Pathfinder.
+lon=sw$lon
+sst=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst=rbind(sst,new)
+}
+sst=sst[-1,]
+names(sst) = c("date", "matched_lat", "matched_lon", "sstAQm")
+
+#https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
+
+#SST Monthly AVHRR Pathfinder 5.3, 1981-2018, 0-360 
+lon=sw$lon2
+sst_pf=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/pf5-3-monthly.csv?sea_surface_temperature[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst_pf=rbind(sst_pf,new)
+}
+sst_pf=sst_pf[-1,]
+names(sst_pf) = c("date", "matched_lat", "matched_lon", "sstpf")
+
+#https://oceanwatch.pifsc.noaa.gov/erddap/griddap/pf5-3-monthly.csv?sea_surface_temperature[(2018-12-17T00:00:00Z):1:(2018-12-17T00:00:00Z)][(89.97917):1:(-89.97916)][(0.02082825):1:(359.9792)]
+
+
+## SST (GHRSST) Geo-Polar Blended Global MONTHLY, Level 4, in Kelvin, 0.05res
+lon=sw$lon2
+sstghrm=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/goes-poes-monthly-ghrsst-RAN.csv?analysed_sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    new[4]=new[4]-273.15 #convert K to Celsius
+    sstghrm=rbind(sstghrm,new)
+}
+sstghrm=sstghrm[-1,]
+names(sstghrm) = c("date", "matched_lat", "matched_lon", "sstghrmC")
+
+
+## SST JPL MUR L4 blended daily, C, 180/-180
+lon = sw$lon
+sst_mur=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.csv?analysed_sst[(",dates[i],"):1:(",dates[i],")][(",lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+   
+    sst_mur=rbind(sst_mur,new)
+}
+sst_mur=sst_mur[-1,]
+names(sst_mur) = c("date", "matched_lat", "matched_lon", "sst_mur")
+
+
+#SST Monthly GOES-POES, 2012-2017, 0.05res
+swfilt <- filter(sw, sw$survey != 1641)
+lon=swfilt$lon2
+lat=swfilt$lat
+dates=swfilt$UTC
+
+sst_m=rep(NA,4)
+for (i in c(1:length(lon))) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_monthly.csv?sst[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst_m=rbind(sst_m,new)
+}
+sst_m=sst_m[-1,]
+names(sst_m) = c("date", "matched_lat", "matched_lon", "sst_m")
+
+
+
+
+#SST 2-Day GOES-POES, 2012-2017, 0.05res
+sst_2=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_2day.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst_2=rbind(sst,new)
+}
+sst_2=sst_2[-1,]
+names(sst_2) = c("date", "matched_lat", "matched_lon", "sst2day")
+# print(sst)
+
+
+## SST Weekly GOES-POES, 2012-2017, 0.05res
+sst_w=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/OceanWatch_goes-poes_sst_weekly.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst_w=rbind(sst_w,new)
+}
+sst_w=sst_w[-1,]
+names(sst_w) = c("date", "matched_lat", "matched_lon", "sst_m")
+
+
+## SST Geo-Polar Blended Global DAILY, Level 4, in Kelvin, 0.05res
+sst_bd=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/goes-poes-1d-ghrsst-RAN.csv?analysed_sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    new[4]=new[4]-273.15 #convert K to Celsius
+    sst_bd=rbind(sst_bd,new)
+}
+sst_bd=sst_bd[-1,]
+
+names(sst_bd) = c("date", "matched_lat", "matched_lon", "sst_bdC")
+
+
+
+
+
+```
+#OISST 25km res that KF used to use. Now use HYCOM instead. But YB didn't use either of these.
+```{r}
+
+
+
+sstblnd = rep(NA,4)
+for (i in 1:length(lon)) {
+
+url = paste("https://www.ncei.noaa.gov/erddap/griddap/ncdc_oisst_v2_avhrr_prelim_by_time_zlev_lat_lon.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    sstblnd=rbind(sstblnd,new)
+
+    
+}
+ 
+```
+
+
+#GODAS-Temperature at depths 100m & 500m, Kelvin
+```{r}
+#Long= 0-360
+lon=sw$lon2
+
+#choose a depth for dep
+dep = 600
+godas = paste0('godas', dep)
+
+
+godas=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d346_28ac_fccf.csv?potdsl[(",dates[i],"):1:(",dates[i],")][(",dep,"):1:(",dep,")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    new[5]=new[5]-273.15  #convert K to Celsius
+    godas=rbind(godas,new)
+}
+godas=godas[-1,]
+names(godas) = c("date", "depth", "matched_lat", "matched_lon", paste0("potempK", dep))
+
+godas100 <- godas
+godas500 <- godas
+godas600 <- godas
+
+http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d346_28ac_fccf.csv?potdsl[(2020-01-01T00:00:00Z):1:(2020-01-01T00:00:00Z)][(5.0):1:(4478.0)][(-74.5):1:(64.36099999999999)][(0.5):1:(359.5)]
+
+
+```
+
+
+
+#Chlorophyll
+```{r}
+#Used monthly ~YB 3/3/20
+#Monthly 4km Chla. Long= 0-360
+lon = sw$lon
+chla_mon=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_69ee_7d0d_74e6.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(",lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    
+    new = read.csv(url, skip = 2, header = FALSE)
+    
+      #  if (is.na(new$V4)==TRUE) {  #if chl=NA, then do all this stuff. Find chl in the next cell over, did not average
+      # url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_chla_monthly_2018_0.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(",lat[i], "):1:(", lat[i], ")][(", lon[i]+0.04, "):1:(", lon[i]+0.04, ")]", sep = "")
+      # new2 = read.csv(url, skip = 2, header = FALSE)
+      # chl_mon=rbind(chl_mon,new2)
+      #  } else {
+         chla_mon=rbind(chla_mon,new)
+       # }
+}
+chla_mon=chla_mon[-1,]
+names(chla_mon) = c("date", "matched_lat", "matched_lon", "matched_chla_mon")
+# chl_mon2 = cbind('ID'=sw$ID, chl_mon)
+# chl_mon2 = chl_mon2[-145, ]
+
+
+
+#missing values! Gotta fill NAs using focal fxn in a raster layer
+#Start with downloading the nc file to convert to a raster layer
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+# Open a connection to the first file in our list
+# nc <- nc_open(paste0(wd, "\\", flist[4]))
+
+ncname = paste0(here('data'), '/', flist[3]) #1641_60
+ncname = paste0(here('data'), '/', flist[2]) #1604_30
+
+nc <- tidync(ncname)
+print(nc)
+
+c <-brick(ncname, varname = "chlor_a")  # RasterBrick
+c2 <- c[[1]]  # RasterLayer, could use raster() somehow if I had the right file format
+
+cfoc <- focal(c2, w=matrix(1/9, nc=3, nr=3), fun=mean, rm.na=TRUE) # RasterLayer of single layer, 1
+xy <- xyFromCell(cfoc, 1:ncell(cfoc))
+chlNA_1641a60 <-raster::extract(cfoc, 21)
+
+
+#Sent to EF for help
+dir = 'C:/Users/yvers/Documents\\CHP 3/SpermWhales/data'
+file_nc = 'aqua_chla_monthly_1604_30.nc'  # OR 'aqua_chla_monthly_1641_60.nc'
+chla = read.csv(paste0(dir, '/Spermies_CHLA.csv'))
+
+ncname = paste0(dir, '/', file_nc) #1604_30
+
+# make raster from nc file
+c1 <- raster(ncname, level=1, varname="chlor_a")
+
+#find NA in chl data
+chla_na <- which(is.na(chla), arr.ind = TRUE)
+
+#apply focal to raster
+cfoc <- focal(c1, w=matrix(1, nc=3, nr=3), fun=mean, rm.na=TRUE) 
+getValues(cfoc)  # check out the data -> lots of NA...
+
+#get lat/lon from focal output
+xy <- xyFromCell(cfoc, 1:ncell(cfoc)) # MATCH lat/lon from chl_mon2 with lat/lons from focal
+
+#extract chl value that matches the location of the NA from 'chla'
+
+
+for (i in chla_na[,1]) {}
+  
+  #find matching lat.lon in chla
+  matched_na <- chla[i,c(4,3)]
+  matched_loc <- filter(xy, xy$x == matched_na[1,1] | xy$y == round(matched_na[1,2],3))
+  
+  
+  match_lat <- which(grepl(chla[i], xy[,2]))
+}
+
+
+chlNA_1604a30 <-raster::extract(cfoc, which(grep1()))
+
+
+
+
+
+
+
+#8-day 4km Chla. Long= 0-360
+chl_8=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_chla_8d_2018_0.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    chl_8=rbind(chl_8,new)
+}
+chl_8=chl_8[-1,]
+names(chl_8) = c("date", "matched_lat", "matched_lon", "matched_chl8")
+```
+
+#Chlorophyll NC version
+```{r}
+
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+# Open a connection to the first file in our list
+# nc <- nc_open(paste0(wd, "\\", flist[4]))
+
+ncname = paste0(here('data'), '/', flist[1])
+# ncname = paste0(here('data'), '/', flist[3])
+nc <- tidync(ncname)
+print(nc)
+
+
+#look at the times in the nc files!!
+nc_chl <- nc_open(ncname)
+
+chl_times <- ncvar_get(nc_chl, 'time')
+chl_dat <- ncvar_get(nc_chl, 'chlor_a')
+ncatt_get(nc_chl,"chlor_a",attname="units") #get units for chlorophyll or time
+
+
+format(as.POSIXct((chl_times), origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")
+#wtf units is the time variable???
+chlvar <- ncatt_get(nc_chl,"time",attname="units")
+
+#https://stackoverflow.com/questions/34294376/how-to-extract-data-from-a-rasterbrick
+c <-brick(ncname, varname = "chlor_a")  # RasterBrick
+c2 <- c[[1]]  # RasterLayer, could use raster() somehow too...
+c3 <- c[[1:66]] # RasterStack
+cfoc <- focal(c2, w=matrix(1, nc=3, nr=3), fun=mean, rm.na=TRUE) # RasterLayer of single layer, 1
+
+
+
+n <- names(c)
+require(stringr)
+new_names <-as.numeric(str_extract(n, "[[:digit:]]+"))
+
+new_names<-ISOdatetime(1970,1,1,12,00,00, tz="GMT")+ new_names
+names(c) <- new_names
+
+
+#make index to match dates with layer names?
+SwSub$layerindex <- match(SwSub$epoch, names(c))
+#?convert sw data to a spatial data frame (comes from lines below where the env data are combined)
+sw.sp <- SwSub
+coordinates(sw.sp) <- ~lat + lon2
+
+chl.points <- raster::extract(c, sw.sp)
+
+
+
+
+
+chl_slice <- crop(cfoc, extent(177, 209, 15, 32))
+
+chl_sliceb <- 
+
+#read the data slice! hyper_tibble selects the depth variable, z, to orient the locations
+lonrange = c(177, 209)
+latrange = c(15, 32)
+dist_slice <- ncname %>% hyper_filter(lon = lon <= lonrange[2] & lon >= lonrange[1], 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('dist'))
+
+saveRDS(dist_slice, file = 'dist2land.rda')  #saveRDS allows for loading object and naming it something different
+
+#find values of dist2land closest to localized whales
+
+dist2land_match = list()
+# lon_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(dist_slice$lon-sw$lon2[i]) == min(abs(dist_slice$lon-sw$lon2[i])) & 
+                    abs(dist_slice$lat-sw$lat[i]) == min(abs(dist_slice$lat-sw$lat[i])))
+  dtmp <- dist_slice$dist[lontmp[1]] #some had duplicates, so take the first one
+  dist2land_match <- append(dist2land_match, dtmp)
+}
+
+# do.call(rbind.data.frame, bath_match)
+```
+
+
+
+
+#SSH - Sea Surface height
+```{r}
+#GODAS SSH, lon 0-360
+lon=sw$lon2
+ssh = rep(NA,4)
+for (i in 1:length(lon)) {
+ 
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_2ee3_0bfa_a8d6.csv?sshgsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    ssh=rbind(ssh,new)
+}
+ssh=ssh[-1,]
+names(ssh) = c("date", "matched_lat", "matched_lon", "ssh")
+
+# http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_2ee3_0bfa_a8d6.csv?sshgsfc[(1980-01-01):1:(2020-01-01T00:00:00Z)][(-74.5):1:(64.36099999999999)][(0.5):1:(359.5)]
+
+#SSH NOT USED
+{
+
+#For 2010 (when done) & 2013 only
+sw_1013 <- filter(sw, sw$survey == 1641)
+lon=sw_1013$lon2
+lat=sw_1013$lat
+dates=sw_1013$UTC
+
+#SSH for 2010/2013 only WEEKLY
+ssh1013_w=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d378_4109_5bc3.csv?ssh[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    ssh1013_w=rbind(ssh1013_w,new)
+}
+ssh1013_w=ssh1013_w[-1,]
+names(ssh1013_w) = c("date", "matched_lat", "matched_lon", "ssh1013")
+
+
+ssh1013_m=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_6368_ca0d_6243.csv?sla[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    ssh1013_m=rbind(ssh1013_m,new)
+}
+ssh1013_m=ssh1013_m[-1,]
+names(ssh1013_m) = c("date", "matched_lat", "matched_lon", "ssh1013_m")
+
+
+
+
+#SSH Anomalies from 2012-2017. Long = -180 to 180, in meters
+sw_1317 <- filter(sw, sw$survey == 1604 | sw$survey == 1705 | sw$survey == 1706 | sw$survey == 1303)
+lon=sw_1317$lon
+lat=sw_1317$lat
+dates=sw_1317$UTC
+
+ssh1317_m=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://coastwatch.noaa.gov/erddap/griddap/noaacwBLENDEDSQsshDaily.csv?sla[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]/100 #convert to cm
+    ssh1317_m=rbind(ssh1317_m,new)
+}
+ssh1317_m=ssh1317_m[-1,]
+names(ssh1317_m) = c("date", "matched_lat", "matched_lon", "ssh1317_m")
+}
+
+
+```
+
+#HYCOM Temperature at 100m & 500m
+```{r}
+dep = 100
+
+https://coastwatch.pfeg.noaa.gov/erddap/griddap/hycom_GLBa008_tdyx.csv?u[(2018-11-27T00:00:00Z):1:(2018-11-27T00:00:00Z)][(100):1:(100)][(1.0):1:(3298.0)][(1.0):1:(4500.0)],v[(2018-11-27T00:00:00Z):1:(2018-11-27T00:00:00Z)][(100):1:(100)][(1.0):1:(3298.0)][(1.0):1:(4500.0)],temperature[(2018-11-27T00:00:00Z):1:(2018-11-27T00:00:00Z)][(100):1:(100)][(1.0):1:(3298.0)][(1.0):1:(4500.0)]
+
+https://coastwatch.pfeg.noaa.gov/erddap/griddap/hycom_GLBa008_tdyx.csv?temperature[(2018-11-27T00:00:00Z):1:(2018-11-27T00:00:00Z)][(5500.0):1:(5500.0)][(1.0):1:(3298.0)][(1.0):1:(4500.0)]
+```
+
+
+```{r}
+#Dissolved oxygen, this chunk doesn't work yet
+do <- gzfile('./data/DisOxy-wfig1581301677.4106.csv.gz', 'rt')
+do <- read_csv('./data/DisOxy-wfig1581301677.4106.csv')
+```
+
+
+# 3. Extract data for chlorophyll-a concentration
+
+There are a few options for chlorophyll, but these datasets are very affected by cloud cover (lots of missing data).
+The daily data is available here:  
+https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_daily.graph  
+  
+If it's too gappy, you might need to use 8-day or monthly data:  
+8-day: https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_weekly.graph  
+monthly: https://oceanwatch.pifsc.noaa.gov/erddap/griddap/noaa_snpp_chla_monthly.graph  
+  
+You just need to change the url in the script above.
+
+# 4. Wind data
+```{r}
+# https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ncep_pac.csv?vgrd10m%5B(2017-12-15T00:00:00Z)%5D%5B(15.0):(32.0)%5D%5B(177.0):(210.0)%5D&.draw=surface&.vars=longitude%7Clatitude%7Cvgrd10m&.colorBar=%7C%7C%7C%7C%7C&.bgColor=0xffccccff
+
+
+#ASCAT from APDRC, Long -180-180
+
+lon=sw$lon
+
+wind_ascat2=rep(NA,4)
+for (i in 1:length(lon)) {
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.csv?wsp[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    wind_ascat2=rbind(wind_ascat2,new)
+}
+
+wind_ascat2=wind_ascat2[-1,]
+names(wind_ascat2) = c("date", "matched_lat", "matched_lon", "wsp")
+# names(wind_ascat) = c("date", "matched_lat", "matched_lon", "wsp", "uwnd", "vwnd", "wind_stress", "uwnd_stress", "vwnd_stress", "wsp_err", "uwnd_err", "vwnd_err", "samp_len")
+
+# http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.csv?wsp[(2020-12-31T00:00:00Z):1:(2020-12-31T00:00:00Z)][(-79.875):1:(80.125)][(-179.875):1:(179.875)]
+
+#"http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.csv?wsp[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],uwnd[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],vwnd[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],wind_stress[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],uwnd_stress[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],vwnd_stress[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],wsp_err[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],uwnd_err[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],vwnd_err[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],sampling_length[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep="")
+
+
+
+# lon=sw$lon2
+# wind_pf=rep(NA,4)
+# for (i in 1:length(lon)) {
+#   # dates[i]
+#     #print(paste("i=", i, " n=", length(lon)))
+#     url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/pf5-3-monthly.csv?sea_surface_temperature[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+#     new = read.csv(url, skip = 2, header = FALSE)
+#     # new[4]=new[4]-273.15
+#     wind_pf=rbind(wind_pf,new)
+# }
+# wind_pf=wind_pf[-1,]
+# names(wind_pf) = c("date", "matched_lat", "matched_lon", "windpf")
+
+
+# https://oceanwatch.pifsc.noaa.gov/erddap/griddap/pf5-3-monthly.csv?wind_speed[(2018-12-17T00:00:00Z):1:(2018-12-17T00:00:00Z)][(89.97917):1:(-89.97916)][(0.02082825):1:(359.9792)]
+
+#ASCAT, just wind speed
+# http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.csv?wsp[(2020-12-31T00:00:00Z):1:(2020-12-31T00:00:00Z)][(-79.875):1:(80.125)][(-179.875):1:(179.875)]
+
+```
+
+http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.graph
+
+# 5. Other data:
+
+A good start might be the HYCOM model:
+https://coastwatch.pfeg.noaa.gov/erddap/griddap/hycom_GLBa008_tdyx.graph  
+This has data from 2008 to Nov. 2018 for temperature, salinity and currents at 41 different depths.
+
+# 5. Static Variables - bathymetry, slope and aspect
+These code chunks are copied from NCtidync.rmd, which was initially created to work with nc files. 
+
+#NC data wrangling
+Find nc files in a given directory
+```{r}
+
+# wd = setwd("C:\\Users\\yvers\\Documents\\CHP 2\\data\\bathymetry")
+wd = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data'
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+# Open a connection to the first file in our list
+# nc <- nc_open(paste0(wd, "\\", flist[4]))
+
+ncname = paste0(here('data'), '/', flist[7])
+
+nc <- tidync(ncname)
+print(nc)
+
+#check number of grids and variables
+ncmeta::nc_grids(flist[3])
+ncmeta::nc_vars(flist[3])
+#some grids have >1 variable nested in the grid rows
+ncmeta::nc_grids(flist[1]) %>% tidyr::unnest(cols = c(variables))
+ncmeta::nc_dims(flist[1])
+ncmeta::nc_vars(flist[1])
+
+raster::brick(flist[1], varname = "z") 
+
+ncmeta::nc_axes(flist[1])
+ncmeta::nc_dims(flist[1])
+
+#read the data slice! hyper_tibble selects the depth variable, z, to orient the locations
+lonrange = c(-151, 177)
+latrange = c(15, 32)
+bathy_slice <- flist[3] %>% hyper_filter(lon = lon <= -151 & lon >= -179, 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+#slice for the other side of the dateline
+bathy_slice2 <- flist[3] %>% hyper_filter(lon = lon <= 180 & lon >= 177, 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+
+#combine slices and save
+bathy_tot <- rbind(bathy_slice, bathy_slice2)
+saveRDS(bathy_tot, file = 'bathy_tot.rda')  #saveRDS allows for loading object and naming it something different
+```
+
+Load saved bathymetry data. Find data that matches most closely with sperm whale locations
+```{r}
+
+#load the 30 million + rows bathy data 
+# bathy_tot <- readRDS(file = './data/bathy_tot.rda')  #can also name it something different if needed
+
+
+bathy_tot <- readRDS(here('data', 'bathy_tot.rda'))  #can also name it something different if needed
+
+# sw <- read.csv(here('output', 'Spermies.csv'))
+# bathy <- read.csv('1706_LeftOut.csv')
+
+
+#find the bathy data closest to each location
+bath_match = list()
+# lon_match = list()
+for (i in 1:nrow(sw)){#[1:2])){#length(bathy$wlon)){
+ 
+  lontmp <- which(abs(bathy_tot$lon-sw$lon2[i]) == min(abs(bathy_tot$lon-sw$lon2[i])) & 
+                    abs(bathy_tot$lat-sw$lat[i]) == min(abs(bathy_tot$lat-sw$lat[i])))
+  btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
+  bath_match <- append(bath_match, btmp)
+}
+
+sw2 <- cbind(sw, do.call(rbind.data.frame, bath_match))  #since I saved things in a list...?
+sw2 <- as_tibble(cbind(sw, do.call(rbind.data.frame, bath_match)))
+
+colnames(sw2) = c(colnames(sw), 'bath')
+
+# bathy2 <- bathy2[ , -c(4,9,12,15:38,41)]
+write.csv(bathy2, "C:\\Users\\yvers\\Documents\\CHP 2\\data\\SpermiesBath_LeftOut.csv", row.names = F)
+
+
+```
+
+Calculate slope and aspect from bathymetry data
+```{r}
+#Make a raster out of the elevation data to calculate slope using terrain()
+#Using the total slice of bathy data
+
+b <-brick(ncname, varname = "z")  #makes RasterBrick
+b2 <- b[[1]]  #makes RasterLayer
+
+#b[[1]] #this keeps the data from the 'brick' within a RasterLayer. Otherwise it only has the parameters that describe the RasterLayer without any data included, weird.
+hi1 <- crop(b2, extent(-180,-151, 15, 32))
+hi2 <- crop(b2, extent(177, 180, 15, 32))
+
+slope_asp1 <- terrain(hi1, opt= c('slope', 'aspect'), unit='degrees', neighbors=8)
+slope_asp2 <- terrain(hi2, opt= c('slope', 'aspect'), unit='degrees', neighbors=8)
+
+#merge slope_asp bricks into one brick
+x <- list(slope_asp1, slope_asp2)
+names(x) <- c("x", "y")
+x$overwrite <- TRUE
+slope_aspHI <- do.call(merge, x)
+saveRDS(slope_aspHI, file = paste0(here('data'), '/','slope_aspHI.rda'))  #saveRDS allows for loading object and naming it something different
+
+
+#convert brick to matrix (df)
+slope_aspdf <- rasterToPoints(slope_aspHI)
+colnames(slope_aspdf) <- c('lon', 'lat', 'slope', 'aspect')
+saveRDS(slope_aspdf, file = paste0(here('data'), '/','slope_aspHIdf.rda'))  #saveRDS allows for loading object and naming it something different
+
+
+#combine different rasters if there are multiple rasters 
+# stack <- stack(slopeHI, aspectHI)
+
+
+#This section calcs slope and aspect separately. Dont need to use.
+{
+#create a raster with aspect and slope values for Hawaii region only. Use
+aspect=terrain(b[[1]], opt='aspect', unit='degrees', neighbors = '4')
+saveRDS(aspect, file = paste0(here('data'), '/','aspect.rda'))  #saveRDS allows for loading object and naming it something different
+
+slope = terrain(b[[1]], opt='slope', unit='tangent', neighbors = '4')
+
+saveRDS(slope, file = paste0(here('data'), '/','slope.rda'))  #saveRDS allows for loading object with readRDS and naming it something different
+
+r = aspect
+r = slope
+
+#if wanting to use a shape file for boundaries
+# us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+# hawaii<-subset(us,NAME=="Hawaii")
+# ex1 <- crop(r, extent(hawaii)) 
+
+#Create 2 different rasters of for data to account for the dateline
+ex1 <- crop(r, extent(-180,-151, 15, 32))
+ex2 <- crop(r, extent(177, 180, 15, 32))
+
+x <- list(ex1, ex2)
+names(x) <- c("x", "y")
+x$filename <- 'aspectHI.tif'
+x$overwrite <- TRUE
+aspectHI <- do.call(merge, x)
+
+x <- list(ex1, ex2)
+names(x) <- c("x", "y")
+x$filename <- 'slopeHI.tif'
+x$overwrite <- TRUE
+slopeHI <- do.call(merge, x)
+
+slopedf <- rasterToPoints(slopeHI)
+aspectdf <- rasterToPoints(aspectHI)
+
+#combine different rasters and create matrix
+stack <- stack(slopeHI, aspectHI)
+slp_asp <- rasterToPoints(stack)
+colnames(slp_asp) <- c('lon', 'lat', 'slope', 'aspect')
+}
+
+```
+
+Find best match of slope and aspect with sperm whale locations
+```{r}
+#load slope/aspect data for entire region
+slope_aspdf <- readRDS(here('data', 'bathy_tot.rda')) 
+
+slope_aspdf2 <- as.data.frame(slope_aspdf)
+
+#find the slope and aspect data closest to each location
+slp_asp_match = list()
+# lon_match = list()
+for (i in 1:nrow(sw)){#[1:2])){#length(bathy$wlon)){
+ 
+  lontmp <- which(abs(slope_aspdf2$lon-sw$lon[i]) == min(abs(slope_aspdf2$lon-sw$lon[i])) & 
+                    abs(slope_aspdf2$lat-sw$lat[i]) == min(abs(slope_aspdf2$lat-sw$lat[i])))
+  
+  tmp <- slope_aspdf2[lontmp[1],] #some had duplicates, so take the first one
+ 
+  slp_asp_match <- rbind(slp_asp_match, tmp)
+  
+}
+
+# colnames(slp_asp_match) <- c('lon2', 'lat2', 'slope', 'aspect')
+# slp_asp_match <- slp_asp_match[, c(2,1,3,4)]
+
+
+```
+
+#Distance to Land GSHHG
+```{r}
+
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+# Open a connection to the first file in our list
+# nc <- nc_open(paste0(wd, "\\", flist[4]))
+
+ncname = paste0(here('data'), '/', flist[4])
+
+nc <- tidync(ncname)
+print(nc)
+
+#check number of grids and variables
+ncmeta::nc_grids(flist[2])
+ncmeta::nc_vars(flist[2])
+#some grids have >1 variable nested in the grid rows
+ncmeta::nc_grids(flist[2]) %>% tidyr::unnest(cols = c(variables))
+ncmeta::nc_dims(flist[2])
+ncmeta::nc_vars(flist[2])
+
+raster::brick(flist[2], varname = "z") #make raster layer
+
+ncmeta::nc_axes(flist[2])
+ncmeta::nc_dims(flist[2])
+
+#read the data slice! hyper_tibble selects the depth variable, z, to orient the locations
+lonrange = c(177, 209)
+latrange = c(15, 32)
+dist_slice <- ncname %>% hyper_filter(lon = lon <= lonrange[2] & lon >= lonrange[1], 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('dist'))
+
+saveRDS(dist_slice, file = 'dist2land.rda')  #saveRDS allows for loading object and naming it something different
+
+#find values of dist2land closest to localized whales
+
+dist2land_match = list()
+# lon_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(dist_slice$lon-sw$lon2[i]) == min(abs(dist_slice$lon-sw$lon2[i])) & 
+                    abs(dist_slice$lat-sw$lat[i]) == min(abs(dist_slice$lat-sw$lat[i])))
+  dtmp <- dist_slice$dist[lontmp[1]] #some had duplicates, so take the first one
+  dist2land_match <- append(dist2land_match, dtmp)
+}
+
+# do.call(rbind.data.frame, bath_match)
+```
+
+
+
+
+
+# Wave Watch 3 - HINDCAST- GRB2 file???
+```{r}
+# https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],Tper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],Thgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],sdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],sper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],shgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],wdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],wper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],whgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Thgt[(2016-07-17):1:(2016-07-17)][(0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+
+https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tper[(2016-07-17):1:(2016-07-17)][(0.0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+
+https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Thgt[(2016-07-17):1:(2016-07-17)][(0.0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+
+#Remove 1641 since that requires extra work to get
+rmID = c(36,37,60,69,76,80,164,171)
+sw_wp <- filter(sw, !sw$acid %in% rmID)
+lon = sw_wp$lon2
+lat = sw_wp$lat
+dates = sw_wp$UTC
+
+
+wp = rep(NA,6)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    urlT = paste("https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tper[(",dates[i],"):1:(",dates[i],")][(0):1:(0)][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    newT = read.csv(urlT, skip = 2, header = FALSE)
+    
+    urlH = paste("https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Thgt[(",dates[i],"):1:(",dates[i],")][(0):1:(0)][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    newH = read.csv(urlH, skip = 2, header = FALSE)
+    
+    
+    
+    wp=rbind(wp, cbind(newT, newH$V5))
+}
+
+wp=wp[-1,]
+names(wp) = c("date", "depth", "matched_lat", "matched_lon", "wtime", "whght")
+wpWID <- cbind(sw_wp$ID, wp)
+
+
+
+#When dealing with Aug and Sept 2010 dates that are NOT on ERDDAP for some dumb reason...downloaded separate GRB(??) files from NCEP website
+tp <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
+tpdf <-as.data.frame(tp)
+
+tpras <- raster(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
+
+wptmp <- 0.5*H*T 
+
+
+```
+
+
+#PAR
+```{r}
+#Monthly PAR. Long= 0-360
+lon=sw$lon2
+lat=sw$lat
+dates=sw$UTC
+
+par_m=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_monthly_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    par_m=rbind(par_m,new)
+}
+par_m=par_m[-1,]
+names(par_m) = c("date", "matched_lat", "matched_lon", "par_m")
+
+#Daily PAR. Long= 0-360
+par_d=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_1d_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    par_d=rbind(par_d,new)
+}
+par_d=par_d[-1,]
+names(par_d) = c("date", "matched_lat", "matched_lon", "par_d")
+
+
+#8-day PAR. Long= 0-360
+par_8=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_8d_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    par_8=rbind(par_8,new)
+}
+par_8=par_8[-1,]
+names(par_8) = c("date", "matched_lat", "matched_lon", "par_8")
+
+
+
+
+
+
+```
+
+
+
+
+#COMBINE DATA into one data frame with spermies.csv
+
+```{r}
+#3/1/20
+
+#bathymetry data
+bathdat = do.call(rbind.data.frame, bath_match)
+colnames(bathdat) = 'bath'
+#distance to land
+dist2land = do.call(rbind.data.frame, dist2land_match)
+colnames(dist2land) = 'dist2land'
+
+#nmin and aux data
+require(openxlsx)
+nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath.xlsx'), sheet=2)
+nmin <- unite(nmintmp, "ID", survey, acid, remove = F)
+
+#combine SW data and env data
+SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm, 'temp105C' = godas100$potempK100, 'temp459C' = godas500$potempK500, 'temp584C' = godas600$potempK600, 'chla_m' = chla_mon$matched_chla_mon, 'par_m' = par_m$par_m, 'ssh' = ssh$ssh, 'bath' = bathdat, 'slp_rad' = slp_asp_match$slope, 'asp_deg' = slp_asp_match$aspect, 'd2land_km' = dist2land$dist2land, 'wind_ms' = wind_ascat$wsp))
+
+SwEnvData_tot <- merge(nmin, SwEnvData, by.x='ID', by.y = 'ID')
+SwEnvData_tot <- SwEnvData_tot[, -c(2,8,13,14)]
+SwEnvData_tot <- dplyr::select(SwEnvData_tot, ID, 'survey'=survey.x, 'acid'=acid.x, UTC, everything())
+
+
+write.csv(SwEnvData_tot, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData_20200310.csv', row.names = F)
+```
+
+#Subset Spermie Data
+```{r}
+#subset spermie data for chl raster
+
+SwSub <- select(SwEnvData, "ID", "UTC", "lat", "lon2")
+SwSub$epoch <- as.numeric(as.POSIXct(SwSub$UTC,tz='UTC')) #paste0('X', as.numeric(as.POSIXct(SwSub$UTC,tz='UTC')))
+
+
+#subset spermie data for Taiki to get det fxn
+sw4Taiki1 <- select(SwEnvData_final, "ID", "UTC", "pdist", "array", "click_code", "peak", "type")
+
+sw4Taiki2 <- filter(sw4Taiki1, type == 'best')
+sw4Taiki2$pdist = abs(sw4Taiki2$pdist)
+write.csv(sw4Taiki1, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermieDistances_all_20200303.csv', row.names = F)
+
+
+```
+
+#Convert Spermie Data to kml for Google Earth
+```{r}
+#organizing data for --->  https://www.earthpoint.us/ExcelToKml.aspx#GoogleEarthIcons
+SwKML <- select(SwEnvData_final, "lat", "lon", "ID", "peak", "type" )
+SwKML$Description <- paste(SwKML$ID, '_', SwKML$peak, '_', SwKML$type)
+SwKML$Icon <- 115
+SwKMLsub <- select(SwKML, "lat", "lon", "ID", "Description", "Icon") %>%
+  `colnames<-` (c("Latitude", "Longitude", "Name", "Description", "Icon"))
+
+write.csv(SwKMLsub, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesKML_20200303.csv', row.names = F)
+
+coordinates(SwKML) <- c("lat", "lon")
+proj4string(SwKML) <- CRS("+init=epsg:28992")
+SwKML_ll <- spTransform(SwKML, CRS("+proj=longlat +datum=WGS84"))
+writeOGR(SwKML_ll["zinc"], "SwKML_ll", layer="ID", driver="KML") 
+
+
+#example
+data(meuse)
+coordinates(meuse) <- c("x", "y")
+proj4string(meuse) <- CRS("+init=epsg:28992")
+meuse_ll <- spTransform(meuse, CRS("+proj=longlat +datum=WGS84"))
+writeOGR(meuse_ll["zinc"], "meuse.kml", layer="zinc", driver="KML") 
+```
+
+#old data chunks/ggplots for sst
+```{r}
+sw4 <- as_tibble(cbind(sw, 'bath'= sw2$bath, slp_asp_match[,3:4], 'chla8'=chl_8[,4], 'chlmon'=chl_mon[,4], 'sla'=sla[,4], 'potempK100' = godas[,5]))
+sw5 <- as_tibble(cbind(sw4, 'potempK500' = godas[,5], 'sst2day' = sst_2[,4], 'sst_m' = sst_m[,4], 'sst_w' = sst_w[,4], 'par_d'=par_d[,4], 'par_8'=par_8[,4], 'par_m'=par_m[,4]))
+
+
+sw6 <- as_tibble((cbind(sw5, 'sst_m2' = sst_m[,4], 'sst_bm' = sst_bm[,5], 'sst_bd' = sst_bd$sst_bdC, 'sst_mur' = sst_mur$sst_mur)))
+
+write.csv(sw5, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData.csv', row.names = F)
+
+
+##Compare SST
+
+sw_sst <- as_tibble(cbind(sw, 'sstAQ'=sst$sstAQm, 'sstghrr' = sstghrm$sstghrmC, 'sstpf'=sst_pf$sstpf, 'sstmur'=sst_mur$sst_mur))
+
+sw_sst2 <- as_tibble(cbind(sw, 'sstpf' = sst_pf$sstpf, 'date' = sst_pf$date, 'matchlat' = sst_pf$matched_lat, 'matchlon'=sst_pf$matched_lon))
+
+                          # 'latAQ' = sst$matched_lat, 'lonAQ' = sst$matched_lon))
+sw_sst <- filter(sw_sst, sw_sst$type == 'best' & sw_sst$peak =="A")
+#plot to compare ssts
+ggplot() +
+  geom_point(data=sw_sst, mapping = aes(y=sstAQ, x=ID,col = 'sstAQ')) +
+  geom_point(data=sw_sst, mapping = aes(y=sw_sst$sstghrr, x=ID, col = 'sstghrr')) +  #GOES-POES is the weirdest
+  geom_point(data=sw_sst, mapping = aes(y=sw_sst$sstpf, x=ID,col = 'sstpf')) +
+  geom_point(data=sw_sst, mapping = aes(y=sw_sst$sstmur, x=ID,col = 'sstmur')) +
+  # scale_color_manual(labels = c("T999", "T888"), values = c("blue", "red")) #for legend if changing colors
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  
+  
+#subset excluding 1641
+sw_sstsub <- filter(sw_sst, sw_sst$survey != 1641)
+
+sw_sstB <- as_tibble(cbind(sw_sstsub, 'sstgopom' = sst_m$sst_m, 'sstgolat' = sst_m$matched_lat, 'sstgolon'=sst_m$matched_lon,'sst_bm'=sst_bm$sst_bmC))
+
+ggplot() +
+  geom_point(data=sw_sstB, mapping = aes(y=sstAQ, x=ID), color = 'red') +
+  geom_point(data=sw_sstB, mapping = aes(y=sw_sstB$sstgopom, x=ID), color = 'blue') +  #GOES-POES is the weirdest
+  geom_point(data=sw_sstB, mapping = aes(y=sw_sstB$sst_bm, x=ID),color = 'yellow') 
+
+
+```
+
+
+
+Can make a map of bathy with image fxn
+```{r}
+#call the data
+bathy_slice_data <- bathy_slice %>% hyper_array()
+trans <- attr(bathy_slice_data, "transforms")
+
+bathy_slice_data2 <- bathy_slice2 %>% hyper_array()
+trans2 <- attr(bathy_slice_data2, "transforms")
+
+lon <- trans$lon %>% dplyr::filter(selected)
+lat <- trans$lat %>% dplyr::filter(selected)
+
+lon2 <- trans2$lon %>% dplyr::filter(selected) #extra tidbit of longitude across dateline
+
+lon <- rbind(lon, lon2) #include full range of lon
+
+image(lon$lon, lat$lat, bathy_slice_data[[1]])
+maps::map("world2", add = TRUE)
+
+
+
+```
+
+Not really using...but good if need to unzip stuff
+```{r}
+#if using raster data, like with ETOPO
+data_dir <- 'C:\\Users\\yvers\\Documents\\CHP 2\\data\\bathymetry\\'
+setwd(data_dir)
+zz=gzfile('ETOPO1_Bed_g_gdal.grd','rt')
+dat=read.csv(ETOPO1_Bed_g_gdal.grd,header=F) 
+
+
+
+do <- gzfile('./data/DisOxy-wfig1581301677.4106.csv', 'rt')
+
+```
