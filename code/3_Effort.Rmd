@@ -1,0 +1,208 @@
+#####
+# Code calculate the amount of trackline that is straight
+```{r}
+
+
+library(here)
+library(lubridate) #needs character or numeric to work
+library(tidyverse)
+library(RcppRoll)
+
+#function to split last 'n' elements in string
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+
+
+```
+##################################
+
+
+#1303 - 20 second intervals
+```{r}
+#Open gps data for straightPath function
+
+dir_str8path = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output\\straightPath results\\'
+gps1303 <- read.csv(paste0(here('data'), '/GPS_1303.csv'))
+```
+
+Survey 1303 & 1641 do not have seconds included in UTC :(
+    Have to manipulate the GPSTime column to extract the seconds
+#1303 add seconds
+```{r}
+pattsec <- as.character(substrRight(gps1303$GPSTime, 2))
+
+#some values of GPSTime appear as a single number with no '0' so it effs up the UTC. Gotta add the '0'
+pattsec2 <- NULL
+for (sec in pattsec){
+  if (nchar(sec) == 1) {
+    s = paste0('0', sec)
+    pattsec2 <- rbind(pattsec2, s)
+  } else
+      pattsec2 <- rbind(pattsec2, sec)
+  }
+  
+#combine UTC with seconds and convert to POSIXct
+gps1303$UTC = mdy_hms(paste0(gps1303$UTC, ':', as.character(pattsec2)))
+
+```
+
+#Straight path for 1303
+```{r}
+nSmall = 5
+nLarge = 26
+thld = 20
+AllSpeeds <- filter(gps1303, Longitude <= -175.5 & Latitude > 27.2)
+
+AllSpeeds <- filter(gps1303, Longitude >= -162.5 & Longitude <= -161.8 & Latitude < 26)
+
+str8_1303 <- straightPath(gps1303, nSmall, nLarge, thld, plot=TRUE)
+
+
+write.csv(str8_1303, here::here('output', 'straightPath_1303.csv'), row.names = F)
+
+
+#filter speeds of 8-10.5 kts from str8AllSpd
+str8sub1303 <- filter(str8_1303, Speed >=7 & Speed <= 11)
+
+myPlot <- ggplot(str8subAllSpd, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
+  scale_color_manual(values = c('red', 'darkgreen'))
+# scale_size_manual(values = c(2, 1))
+print(myPlot)
+
+
+write.csv(str8sub1303, here::here('output', 'straightPath_1303.csv'), row.names = F)
+```
+
+#1641 - 1 min interval
+```{r}
+# Load data
+
+gps1641 <- read.csv(here::here('data', 'GPS_1641.csv'))
+
+# subset for locations west of -150 W, into the HI EEZ
+gps1641 <- filter(gps1641, Longitude <= -150 )
+
+
+```
+
+#1641 add seconds
+```{r}
+pattsec <- as.character(substrRight(gps1641$GPSTime, 2))
+
+#some values of GPSTime appear as a single number with no '0' so it effs up the UTC. Gotta add the '0'
+pattsec2 <- NULL
+for (sec in pattsec){
+  if (nchar(sec) == 1) {
+    s = paste0('0', sec)
+    pattsec2 <- rbind(pattsec2, s)
+  } else
+      pattsec2 <- rbind(pattsec2, sec)
+  }
+  
+#combine UTC with seconds and convert to POSIXct
+gps1641$UTC = mdy_hms(paste0(gps1641$UTC, ':', as.character(pattsec2)))
+
+```
+
+
+#Straight path for 1641
+```{r}
+nSmall = 5
+nLarge = 15
+thld = 20
+
+AllSpeeds <- filter(gps1641, Longitude >= -165 & Longitude <= -163 & Latitude < 24 & Latitude >23.8)
+
+str8_1641 <- straightPath(gps1641, nSmall, nLarge, thld, plot=TRUE)
+
+
+# write.csv(str8_1641, here::here('output', 'straightPath_1303.csv'), row.names = F)
+
+
+#filter speeds of 8-10.5 kts from str8AllSpd
+str8sub1641 <- filter(str8_1641, Speed >=7 & Speed <= 11)# & Longitude > -165 & Longitude < -162
+                      #& Latitude < 24 & Latitude > 21)
+
+
+myPlot <- ggplot(str8sub1641, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
+  scale_color_manual(values = c('red', 'darkgreen'))
+# scale_size_manual(values = c(2, 1))
+print(myPlot)
+
+write.csv(str8sub1641, here::here('output', 'straightPath_1641.csv'), row.names = F)
+```
+
+
+
+
+
+
+#filter gps data for speeds between 8-10 knots
+gps1303sub1 <- filter(gps1303, Speed >= 8 & Speed <= 10.5)
+gps1303sub1$UTC2<- as.character(gps1303sub1$UTC)
+
+#function to split last 'n' elements in string
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+pattsec <- substrRight(gps1303sub1$GPSTime, 2)
+
+gps1303sub1$UTC = mdy_hms(paste0(gps1303sub1$UTC, ':', pattsec))
+
+
+#run straightPath from PAMmisc
+require(RcppRoll)
+str8path <- straightPath(gps1303sub1, 30, 90, 20, plot=TRUE)
+
+
+#Explore a small subset of GPS data
+gps1303sub2 <- filter(gps1303sub1, Longitude <= -175.5 & Latitude > 27.2)
+str8path1 <- straightPath(gps1303sub2, 30, 60, 20, plot=TRUE)
+str8path2 <- straightPath(gps1303sub2, 15, 30, 20, plot=TRUE)
+
+write.csv(str8path2, here('output', 'TestPath_1303subset.csv'), row.names = F)
+write.csv(gps1303sub2, here('output', 'TestPath_1303data.csv'), row.names = F)
+
+
+big60 <- filter(str8path2, Longitude > -175.67)
+big90 <- filter(str8path2, Longitude > -175.67)
+big90b <- filter(str8path2, Longitude > -175.67)
+
+
+#subset for longitudes west of 172
+gps1303W172 <- filter(gps1303sub1, Longitude <= -172)
+str8pathW172 <- straightPath(gps1303W172, 30, 60, 20, plot=TRUE)
+
+
+#use all speeds within the same area
+gps1303sub3 <- filter(gps1303, Longitude <= -175.5 & Latitude > 27.2)
+str8pathALL <- straightPath(gps1303sub3, 30, 90, 20, plot=TRUE)
+
+
+myPlot2 <- ggplot(AllSpeeds, aes(Longitude, Latitude)) +
+  geom_point()
+print(myPlot2)
+
+myPlot3 <- ggplot(gps1303, aes(Longitude, Latitude)) +
+  geom_path()
+print(myPlot3)
+
+patt2 <- substr(gps1303sub1$UTC2, 1, 9) #subset the longest date string
+patt2trim <- str_trim(patt2, side = "right") #trim the white space off the shorter strings
+
+
+
+
+dv = patt2trim
+
+hh = floor(gps1303sub1$GPSTime/10000);
+mm = floor((gps1303sub1$GPSTime-hh*10000)/100);
+ss = floor((gps1303sub1$GPSTime-hh*10000-mm*100));
+dv2 = paste0(dv, hh, mm, ss)
+
+
+require(M3)
+patt3 <- combine.date.and.time(date = dv, time=list(hh, mm, ss))

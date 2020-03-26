@@ -2,6 +2,8 @@
 
 library(ggplot2)
 library(dplyr)
+library(here)
+library(Distance)
 
 #Distance data from 2_PmEncData.rmd
 dists <- sw
@@ -39,7 +41,6 @@ ggplot(dists, aes(x=pdist, fill=type)) +
 
 
 #detection function from Distance
-library(Distance)
 
 #Peak A only, With 1641
 distBestA_dtfun <- ds(distBestA$pdist)
@@ -59,8 +60,6 @@ par(mfrow=c(1,3))
 plot(distBestB_dtfun, main = "Best Distances, peak B")
 plot(distMinB_dtfun, main = "Min Distances, peak B")
 plot(distMaxB_dtfun, main = "Max Distances, peak B")
-
-
 
 
 #All Peaks, With 1641
@@ -87,5 +86,29 @@ plot(distBest1_dtfun, main = "Best Distances (w/o 1641)")
 plot(distBest0_dtfun, main = "Best Distances (w/ 1641)")
 
 
+########## Error Distribution #############
 
+# Load data from matlab Step 5
 
+SwDists <- read.csv(here('data', 'SpermieDistances_distributionALL.csv'), header = FALSE)
+# SwDists <-SwDists[-c(56,58),]
+# SwDists <-SwDists[-c(56,58),]
+
+colnames(SwDists) <- c('survey', 'acid', 'mean', 'std', 'cv')
+
+mdl <- lm(std ~ mean, data=SwDists)
+pval = round(summary(mdl)$coefficients[2,4],5)
+r2 = summary(mdl)$adj.r.squared
+#plot linear model with 95% confidence intervals
+plotOrder <- order(SwDists$mean)
+cint <- as.data.frame(predict(mdl, interval = "confidence"))
+
+plot(SwDists$mean, SwDists$std, xlab = 'Mean (m)', ylab='Standard Deviation (m)', pch = 19) + abline(lm(std ~ mean, data=SwDists), col = 'blue', lwd=2) 
+lines(SwDists$mean[plotOrder], cint$lwr[plotOrder], col='blue', lwd=1, lty=2) # plot lower interval
+lines(SwDists$mean[plotOrder], cint$upr[plotOrder], col='blue', lwd=1, lty=2) 
+SwRP <- vector('expression', 2)
+SwRP[1] <- substitute(expression(italic(R)^2 == MYVALUE),
+                      list(MYVALUE = format(r2, digits =3)))[2]
+SwRP[2] <- substitute(expression(italic(p) == MYOTHERVALUE),
+                       list(MYOTHERVALUE = format(pval, digits =5)))[2]
+legend('topleft', legend = SwRP, bty = 'n')

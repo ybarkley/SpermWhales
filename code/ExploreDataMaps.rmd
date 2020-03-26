@@ -1,0 +1,176 @@
+---
+title: "ExploreDataPlots"
+author: "Yvonne Barkley"
+date: "3/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(reshape2)
+library(geoR)
+library(fields)
+library(sp)
+library(maptools)
+library(rgdal)
+library(classInt)
+library(lattice)
+library(zoo)
+library(ggplot2)
+library(Rmisc)
+library(MuMIn)
+library(matrixStats)
+```
+
+
+#Load data
+
+```{r}
+dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/'
+SwEnvData_map <- read.csv(paste0(dir, 'SpermiesWithEnvData_20200310.csv'))
+
+#The simple maps hate when data crosses the dateline, so for now, I'm adjusting everything back to the eastern side of the dateline for visual purposes
+SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvData_map$lon)
+
+#too many click_codes, reduce creaks/regular (ck/r) to 'f' for foraging -> s, f, cd, cds, cdf, fs, cdfs
+SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code, "r|ck", "f")
+SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code2, "ff", "f")
+
+#now filter for just the 'best' location
+SwEnvData_mapb <- filter(SwEnvData_map, type == 'best', peak == 'A')
+
+
+
+```
+
+
+#Plot temps at different depths
+##Get Hawaii map data
+```{r}
+#Get shape files for Hawaii
+us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+hawaii<-subset(us,NAME=="Hawaii")
+hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+```
+
+##Plot temp at 0m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=sstAQ_m), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(8, 17, 15, 18, 12, 19),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp0, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 0 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_SSTMap.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+##Plot temp at 100m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=temp105C), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(8, 17, 15, 18, 12, 19),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp100 m, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 100 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_T100Map.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+##Plot temp at 0m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=temp459C), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp500, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 500 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_T500Map.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=bath), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#fcff00", "#ff9b00", "#b04ce5"), name='Bathy, m') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Bathymetry") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_Bathy.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=ssh), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#fcff00", "#ff9b00", "#b04ce5"), name='SSH, cm') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("SSH") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_SSH.png'), width=8, height = 6, units='in', dpi=300)
+```

@@ -626,7 +626,7 @@ names(wind_ascat2) = c("date", "matched_lat", "matched_lon", "wsp")
 
 http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.graph
 
-# 5. Other data:
+
 
 A good start might be the HYCOM model:
 https://coastwatch.pfeg.noaa.gov/erddap/griddap/hycom_GLBa008_tdyx.graph  
@@ -751,10 +751,10 @@ saveRDS(slope_aspdf, file = paste0(here('data'), '/','slope_aspHIdf.rda'))  #sav
 #This section calcs slope and aspect separately. Dont need to use.
 {
 #create a raster with aspect and slope values for Hawaii region only. Use
-aspect=terrain(b[[1]], opt='aspect', unit='degrees', neighbors = '4')
+aspect=terrain(b[[1]], opt='aspect', unit='degrees', neighbors = '8')
 saveRDS(aspect, file = paste0(here('data'), '/','aspect.rda'))  #saveRDS allows for loading object and naming it something different
 
-slope = terrain(b[[1]], opt='slope', unit='tangent', neighbors = '4')
+slope = terrain(b[[1]], opt='slope', unit='tangent', neighbors = '8')
 
 saveRDS(slope, file = paste0(here('data'), '/','slope.rda'))  #saveRDS allows for loading object with readRDS and naming it something different
 
@@ -800,8 +800,11 @@ slope_aspdf <- readRDS(here('data', 'bathy_tot.rda'))
 
 slope_aspdf2 <- as.data.frame(slope_aspdf)
 
+slope_aspdf2 <- as.data.frame(slp_asp)
+
+
 #find the slope and aspect data closest to each location
-slp_asp_match = list()
+slp_asp_match2 = list()
 # lon_match = list()
 for (i in 1:nrow(sw)){#[1:2])){#length(bathy$wlon)){
  
@@ -810,7 +813,7 @@ for (i in 1:nrow(sw)){#[1:2])){#length(bathy$wlon)){
   
   tmp <- slope_aspdf2[lontmp[1],] #some had duplicates, so take the first one
  
-  slp_asp_match <- rbind(slp_asp_match, tmp)
+  slp_asp_match2 <- rbind(slp_asp_match2, tmp)
   
 }
 
@@ -912,8 +915,17 @@ wpWID <- cbind(sw_wp$ID, wp)
 
 
 #When dealing with Aug and Sept 2010 dates that are NOT on ERDDAP for some dumb reason...downloaded separate GRB(??) files from NCEP website
+
+dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\WW3\\'
+fn = 'WW3_height_201008.grb2'
+
+go <- readGDAL(paste0(dir, fn))
+
 tp <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
 tpdf <-as.data.frame(tp)
+
+hs <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.hs.201008.grb2'))
+hsdf <-as.data.frame(hs)
 
 tpras <- raster(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
 
@@ -997,14 +1009,14 @@ nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath.xlsx'), sheet=2)
 nmin <- unite(nmintmp, "ID", survey, acid, remove = F)
 
 #combine SW data and env data
-SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm, 'temp105C' = godas100$potempK100, 'temp459C' = godas500$potempK500, 'temp584C' = godas600$potempK600, 'chla_m' = chla_mon$matched_chla_mon, 'par_m' = par_m$par_m, 'ssh' = ssh$ssh, 'bath' = bathdat, 'slp_rad' = slp_asp_match$slope, 'asp_deg' = slp_asp_match$aspect, 'd2land_km' = dist2land$dist2land, 'wind_ms' = wind_ascat$wsp))
+SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm, 'temp105C' = godas100$potempK100, 'temp459C' = godas500$potempK500, 'temp584C' = godas600$potempK600, 'chla_m' = chla_mon$matched_chla_mon, 'par_m' = par_m$par_m, 'ssh' = ssh$ssh, 'bath' = bathdat, 'slp_deg' = slp_asp_match$slope, 'asp_deg' = slp_asp_match$aspect, 'd2land_km' = dist2land$dist2land, 'wind_ms' = wind_ascat$wsp))
 
 SwEnvData_tot <- merge(nmin, SwEnvData, by.x='ID', by.y = 'ID')
 SwEnvData_tot <- SwEnvData_tot[, -c(2,8,13,14)]
 SwEnvData_tot <- dplyr::select(SwEnvData_tot, ID, 'survey'=survey.x, 'acid'=acid.x, UTC, everything())
 
 
-write.csv(SwEnvData_tot, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData_20200310.csv', row.names = F)
+write.csv(SwEnvData_tot, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData_20200310.csv',  row.names = F)
 ```
 
 #Subset Spermie Data
