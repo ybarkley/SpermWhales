@@ -1,5 +1,30 @@
+---
+title: "Sperm Whale Habitat Model: Effort"
+author: "Yvonne Barkley"
+date: "03/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
 #####
-# Code calculate the amount of trackline that is straight
+This markdown used the function straightPath from the PAMmisc package, developed by Taiki Sakai, to calculate the amount of trackline that is straight. Certain parameters must be considered, including nSmall for determining where the ship is going, and nLarge for determining where the ship has been in order to decipher whether the ship has turned. The thld parameter indicates the amount of change occurs in the trackline to be considered different, and therefore, a turning segment. 
+
+Yvonne has experimented with the function and found that each GPS data set can be different in several ways, including
+
+* UTC format: It is easy to use lubridates handy POSIXct conversion functions, BUT UTC must be converted to a character, and the correct date/time format must be realized. For example, ymd_hms vs mdy_hms.
+
+* Are seconds included?: Older datasets don't have seconds included and must be extracted from the GPSTime column. A simple loop is included for data collected before 2016. After 2016 seems to be fine.
+
+* Time interval: Take a look at how often the data were collected. It can range between 10 s - 1 min. 
+
+General rules of thumb for selecting each parameter for a good starting point and running the function in general:
+
+* nSmall: A value that equals about 2 minutes based on the time interval of data collection
+* nLarge: A value that equals between 6-8 minutes
+* thld:   YB kept this at 20 to be more conservative
+* Run the entire gps data set THEN filter the data for lat, lon, speed, etc. This will prevent any skewed results and misinterpretations.
+
+#Libraries
 ```{r}
 
 
@@ -52,12 +77,9 @@ gps1303$UTC = mdy_hms(paste0(gps1303$UTC, ':', as.character(pattsec2)))
 nSmall = 5
 nLarge = 26
 thld = 20
-AllSpeeds <- filter(gps1303, Longitude <= -175.5 & Latitude > 27.2)
-
-AllSpeeds <- filter(gps1303, Longitude >= -162.5 & Longitude <= -161.8 & Latitude < 26)
 
 str8_1303 <- straightPath(gps1303, nSmall, nLarge, thld, plot=TRUE)
-
+str8_1303zoom <- filter(str8_1303, Longitude >= -162.5 & Longitude <= -161.8 & Latitude < 26)
 
 write.csv(str8_1303, here::here('output', 'straightPath_1303.csv'), row.names = F)
 
@@ -65,10 +87,11 @@ write.csv(str8_1303, here::here('output', 'straightPath_1303.csv'), row.names = 
 #filter speeds of 8-10.5 kts from str8AllSpd
 str8sub1303 <- filter(str8_1303, Speed >=7 & Speed <= 11)
 
-myPlot <- ggplot(str8subAllSpd, aes(x=Longitude, y=Latitude)) +
+myPlot <- ggplot(str8sub1303, aes(x=Longitude, y=Latitude)) +
   geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
-  scale_color_manual(values = c('red', 'darkgreen'))
-# scale_size_manual(values = c(2, 1))
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8_1303$timeDiff[1], 's'))
 print(myPlot)
 
 
@@ -109,26 +132,28 @@ gps1641$UTC = mdy_hms(paste0(gps1641$UTC, ':', as.character(pattsec2)))
 
 #Straight path for 1641
 ```{r}
-nSmall = 5
-nLarge = 15
+# nSmall = 5
+# nLarge = 15
 thld = 20
+nSmall = 2
+nLarge = 7
 
-AllSpeeds <- filter(gps1641, Longitude >= -165 & Longitude <= -163 & Latitude < 24 & Latitude >23.8)
 
 str8_1641 <- straightPath(gps1641, nSmall, nLarge, thld, plot=TRUE)
 
 
-# write.csv(str8_1641, here::here('output', 'straightPath_1303.csv'), row.names = F)
-
+str8_1641zoom <- filter(str8_1641, Longitude >= -165 & Longitude <= -164 & Latitude < 23.5 & Latitude >23)
 
 #filter speeds of 8-10.5 kts from str8AllSpd
 str8sub1641 <- filter(str8_1641, Speed >=7 & Speed <= 11)# & Longitude > -165 & Longitude < -162
                       #& Latitude < 24 & Latitude > 21)
 
 
-myPlot <- ggplot(str8sub1641, aes(x=Longitude, y=Latitude)) +
+myPlot <- ggplot(str8_1641zoom, aes(x=Longitude, y=Latitude)) +
   geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
-  scale_color_manual(values = c('red', 'darkgreen'))
+  scale_color_manual(values = c('red', 'darkgreen')) +
+    ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8_1641$timeDiff[1], 's'))
 # scale_size_manual(values = c(2, 1))
 print(myPlot)
 
@@ -137,8 +162,211 @@ write.csv(str8sub1641, here::here('output', 'straightPath_1641.csv'), row.names 
 
 
 
+#1604 - 10 second interval
+Seconds are included in UTC
+```{r}
+# Load data
+
+gps1604 <- read.csv(here::here('data', 'GPS_1604.csv'))
+
+# subset for locations west of -150 W, into the HI EEZ
+gps1604$UTC <- as.character(gps1604$UTC)
+gps1604$UTC <- ymd_hms(gps1604$UTC)
+
+```
+
+#Straight path for 1604
+```{r}
+nSmall = 15
+nLarge = 35
+thld = 20
+
+str8_1604 <- straightPath(gps1604, nSmall, nLarge, thld, plot=TRUE)
+
+#filter to zoom in on some wiggly parts
+str8_1604zoom <- filter(str8_1604, Longitude >= -158.35 & Longitude <= -158.2 & Latitude < 18.8 & Latitude >18.65)
 
 
+#filter speeds of 8-10.5 kts from str8AllSpd
+str8sub1604 <- filter(str8_1604, Speed >=7 & Speed <= 11)# & Longitude > -165 & Longitude < -162
+                      #& Latitude < 24 & Latitude > 21)
+
+
+#Get shape files for Hawaii
+us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+hawaii<-subset(us,NAME=="Hawaii")
+hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+colnames(hawaiiMap)[1] <- 'Longitude'
+colnames(hawaiiMap)[2] <- 'Latitude'
+
+hawaiiMap2 = filter(hawaiiMap, Longitude >= min(str8_1604$Longitude) & Longitude <= max(str8_1604$Longitude))
+
+hawaiiMap2 = filter(hawaiiMap, Longitude >= min(str8_1604zoom$Longitude) & Longitude <= max(str8_1604zoom$Longitude) & Latitude >= min(str8_1604zoom$Latitude) & Latitude <= max(str8_1604zoom$Latitude))
+
+
+myPlot <- ggplot(str8sub1604, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  geom_polygon(data = hawaiiMap2, aes(x = Longitude, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8_1604$timeDiff[1], 's'))
+# scale_size_manual(values = c(2, 1))
+print(myPlot)
+
+write.csv(str8sub1604, here::here('output', 'straightPath_1604.csv'), row.names = F)
+```
+
+
+#1705 - 10 second interval
+Seconds are included in UTC
+```{r}
+# Load data
+
+gps1705 <- read.csv(here::here('data', 'GPS_1705.csv'))
+
+# subset for locations west of -150 W, into the HI EEZ
+gps1705$UTC <- as.character(gps1705$UTC)
+gps1705$UTC <- mdy_hms(gps1705$UTC)
+
+gps1705 <- filter(gps1705, Longitude <= -150 )
+
+```
+
+#Straight path for 1705
+```{r}
+nSmall = 18
+nLarge = 42#30#42
+thld = 20
+
+str8_1705 <- straightPath(gps1705, nSmall, nLarge, thld, plot=TRUE)
+
+#filter to zoom in on some wiggly parts
+str8_1705zoom <- filter(str8_1705, Longitude >= -158.2 & Longitude <= -158.175 & Latitude < 21.1 & Latitude >21)
+
+#filter speeds of 8-10.5 kts from str8AllSpd
+str8sub1705 <- filter(str8_1705, Speed >=7 & Speed <= 11)# & Longitude > -165 & Longitude < -162
+                      #& Latitude < 24 & Latitude > 21)
+str8sub1705zoom <- filter(str8sub1705, Longitude >= -158.2 & Longitude <= -158.175 & Latitude < 21.1 & Latitude >21)
+
+
+#Get shape files for Hawaii
+# us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+# hawaii<-subset(us,NAME=="Hawaii")
+# hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+# colnames(hawaiiMap)[1] <- 'Longitude'
+# colnames(hawaiiMap)[2] <- 'Latitude'
+# 
+# hawaiiMap2 = filter(hawaiiMap, Longitude >= min(str8_1705$Longitude) & Longitude <= max(str8_1705$Longitude))
+
+# hawaiiMap2 = filter(hawaiiMap, Longitude >= min(str8_1705zoom$Longitude) & Longitude <= max(str8_1705zoom$Longitude) & Latitude >= min(str8_1705zoom$Latitude) & Latitude <= max(str8_1705zoom$Latitude))
+
+
+myPlot <- ggplot(str8sub1705zoom, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8_1705$timeDiff[1], 's'))
+print(myPlot)
+
+write.csv(str8sub1705, here::here('output', 'straightPath_1705.csv'), row.names = F)
+```
+
+
+#1706 - 10 second interval
+Seconds are included in UTC
+```{r}
+# Load data
+
+gps1706 <- read.csv(here::here('data', 'GPS_1706.csv'))
+
+# subset for locations west of -150 W, into the HI EEZ
+gps1706$UTC <- as.character(gps1706$UTC)
+gps1706$UTC <- mdy_hms(gps1706$UTC)
+
+#changed longitude to 0-360 for plotting purposes
+gps1706$Longitude <- ifelse(gps1706$Longitude <1, gps1706$Longitude + 360, gps1706$Longitude)
+
+```
+
+#Straight path for 1706
+```{r}
+nSmall = 18
+nLarge = 42#30#42
+thld = 20
+
+str8_1706 <- straightPath(gps1706, nSmall, nLarge, thld, plot=TRUE)
+
+#filter to zoom in on some wiggly parts
+str8_1706zoom <- filter(str8_1706, Longitude >= 181.5 & Longitude <= 182 & Latitude < 28.35 & Latitude >28.25)
+
+#filter speeds of 8-10.5 kts from str8AllSpd
+str8sub1706 <- filter(str8_1706, Speed >=7 & Speed <= 11)# & Longitude > -165 & Longitude < -162
+                      #& Latitude < 24 & Latitude > 21)
+str8sub1706zoom <- filter(str8sub1706, Longitude >= 181.5 & Longitude <= 182 & Latitude < 28.35 & Latitude >28.25)
+
+myPlot <- ggplot(str8sub1706zoom, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1.3) +
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8_1706$timeDiff[1], 's'))
+print(myPlot)
+
+#change longitude back to original format
+str8sub1706$Longitude <- ifelse(str8sub1706$Longitude > 180, str8sub1706$Longitude - 360, str8sub1706$Longitude)
+
+write.csv(str8sub1706, here::here('output', 'straightPath_1706.csv'), row.names = F)
+```
+
+
+#CHECK PM LOCATIONS
+Check that the sperm whales fall along the straight segments for each survey
+```{r message=FALSE}
+#load sperm whale data
+SwEnvData_tot <- read_csv(here::here('output', 'SpermiesWithEnvData_20200326.csv'))
+
+#1303
+sw1303 <- filter(SwEnvData_tot, survey == 1303) 
+
+#1641
+str8sub1641$Longitude <- ifelse(str8sub1641$Longitude <1, str8sub1641$Longitude + 360, str8sub1641$Longitude)
+
+sw1641 <- filter(SwEnvData_tot, survey == 1641) 
+
+
+#1604
+sw1604 <- filter(SwEnvData_tot, survey == 1604)# & lon >= -159 & lon <= -158 & lat < 22.5 & lat > 22) 
+str8sub1604zoom <- filter(str8_1604, Longitude >= -159 & Longitude <= -158 & Latitude < 22.5 & Latitude > 22)
+
+#1705
+sw1705 <- filter(SwEnvData_tot, survey == 1705) 
+
+#1706
+#change 1706 longitude to 0-360, zoom in on wherever
+str8sub1706$Longitude <- ifelse(str8sub1706$Longitude <1, str8sub1706$Longitude + 360, str8sub1706$Longitude)
+str8sub1706zoom <- filter(str8sub1706, Longitude >= 203 & Longitude <= 203.25 & Latitude < 20.5 & Latitude > 20.25)
+sw1706 <- filter(SwEnvData_tot, survey == 1706 & lon2 >= 203 & lon2 <= 203.25 & lat < 20.5 & lat > 20.25)
+
+
+
+
+
+
+
+str8segs = str8sub1641
+str8SW = sw1641
+
+
+myPlot <- ggplot(str8segs, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1) +
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  
+  geom_point(data=str8SW, mapping = aes(lon2, lat), shape = 15) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8segs$timeDiff[1], 's'))
+print(myPlot)
+
+```
 
 #filter gps data for speeds between 8-10 knots
 gps1303sub1 <- filter(gps1303, Speed >= 8 & Speed <= 10.5)

@@ -1,5 +1,5 @@
 ---
-title: "Sperm Whale Habitat Model"
+title: "Sperm Whale Habitat Model: Environmental Data"
 author: "Yvonne Barkley"
 date: "02/2020"
 output:
@@ -72,7 +72,7 @@ library(here) #helps with stupid root dir and accessing subfolders, it's awesome
 # T = filter(T, T$Survey.Number != 1641 & T$Survey.Number != 1642)
 
 # sw <- read.csv(here('output', 'Spermies_20200304.csv'))
-sw <- read.csv(here('output', 'Spermies_20200310.csv'))
+sw <- read.csv(here::here('output', 'Spermies_20200310.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
 sw$lon2 = ifelse(sw$lon <1, sw$lon + 360, sw$lon)
 lon=sw$lon2
@@ -878,13 +878,23 @@ for (i in 1:nrow(sw)){
 
 # Wave Watch 3 - HINDCAST- GRB2 file???
 ```{r}
-# https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],Tper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],Thgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],sdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],sper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],shgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],wdir[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],wper[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],whgt[(2010-11-07T21:00:00Z):1:(2020-02-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
-https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Thgt[(2016-07-17):1:(2016-07-17)][(0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+ww3 = rep(NA,6)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    urlww3 = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_98bb_253a_eb1c.csv?htsgwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],perpwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    newww3 = read.csv(urlww3, skip = 2, header = FALSE)
+    
+    ww3=rbind(ww3, newww3)
+}
 
-https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tper[(2016-07-17):1:(2016-07-17)][(0.0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+ww3=ww3[-1,]
+names(ww3) = c("date", "matched_lat", "matched_lon", "whght", "wtime")
 
-https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Thgt[(2016-07-17):1:(2016-07-17)][(0.0):1:(0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+ww3$wavepow = (1024*9.8)/(64*pi)*ww3$whght^2*ww3$wtime
 
+#previous code below
+#####
 #Remove 1641 since that requires extra work to get
 rmID = c(36,37,60,69,76,80,164,171)
 sw_wp <- filter(sw, !sw$acid %in% rmID)
@@ -916,20 +926,20 @@ wpWID <- cbind(sw_wp$ID, wp)
 
 #When dealing with Aug and Sept 2010 dates that are NOT on ERDDAP for some dumb reason...downloaded separate GRB(??) files from NCEP website
 
-dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\WW3\\'
-fn = 'WW3_height_201008.grb2'
+# dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\WW3\\'
+# fn = 'WW3_height_201008.grb2'
+# 
+# go <- readGDAL(paste0(dir, fn))
+# 
+# tp <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
+# tpdf <-as.data.frame(tp)
+# 
+# hs <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.hs.201008.grb2'))
+# hsdf <-as.data.frame(hs)
+# 
+# tpras <- raster(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
 
-go <- readGDAL(paste0(dir, fn))
 
-tp <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
-tpdf <-as.data.frame(tp)
-
-hs <- readGDAL(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.hs.201008.grb2'))
-hsdf <-as.data.frame(hs)
-
-tpras <- raster(paste0(here('data'), '/WW3/WW3multi_1.glo_30m.tp.201008.grb2'))
-
-wptmp <- 0.5*H*T 
 
 
 ```
@@ -946,8 +956,7 @@ par_m=rep(NA,4)
 for (i in 1:length(lon)) {
   # dates[i]
     #print(paste("i=", i, " n=", length(lon)))
-    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_monthly_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", 
-        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_monthly_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
     new = read.csv(url, skip = 2, header = FALSE)
     par_m=rbind(par_m,new)
 }
@@ -1015,8 +1024,11 @@ SwEnvData_tot <- merge(nmin, SwEnvData, by.x='ID', by.y = 'ID')
 SwEnvData_tot <- SwEnvData_tot[, -c(2,8,13,14)]
 SwEnvData_tot <- dplyr::select(SwEnvData_tot, ID, 'survey'=survey.x, 'acid'=acid.x, UTC, everything())
 
+#since 'slope' is not saved...reload and cbind ww3
+SwEnvData_tot <- cbind(SwEnvData_tot, ww3$`wavepow`)
+colnames(SwEnvData_tot)[31] <- 'wavepow'
 
-write.csv(SwEnvData_tot, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData_20200310.csv',  row.names = F)
+write.csv(SwEnvData_tot, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesWithEnvData_20200326.csv',  row.names = F)
 ```
 
 #Subset Spermie Data
