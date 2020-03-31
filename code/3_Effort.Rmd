@@ -32,6 +32,7 @@ library(here)
 library(lubridate) #needs character or numeric to work
 library(tidyverse)
 library(RcppRoll)
+library(data.table)
 
 #function to split last 'n' elements in string
 substrRight <- function(x, n){
@@ -348,23 +349,101 @@ str8sub1706zoom <- filter(str8sub1706, Longitude >= 203 & Longitude <= 203.25 & 
 sw1706 <- filter(SwEnvData_tot, survey == 1706 & lon2 >= 203 & lon2 <= 203.25 & lat < 20.5 & lat > 20.25)
 
 
+#swap the straight segments for each survey to check if the sperm whales are located along straight trackline segments
+str8segs = str8sub1303
+str8SW = sw1303
 
 
+(myPlot <- ggplot(str8segs, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=straight), size = 1) +
+  scale_color_manual(values = c('red', 'darkgreen')) +
+  
+  geom_point(data=str8SW, mapping = aes(lon, lat), shape = 15) +
+  ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
+                 ", TimeDiff=", str8segs$timeDiff[1], 's')))
 
 
+```
 
+#Effort Match
+Determine when and where the acoustics team was ON effort along straight segments.
+Use the 'str8sub' data because those include only the straight 
+```{r}
+survey = 1641
 str8segs = str8sub1641
 str8SW = sw1641
 
+eff <- read.csv(here::here('data', paste0('Effort_', survey, '.csv')))
+# eff <- filter(eff, ot_effort == 'S')
+eff$UTC <- mdy_hm(as.character(eff$UTC))
+eff$PCTime <- mdy_hm(as.character(eff$PCTime))
 
-myPlot <- ggplot(str8segs, aes(x=Longitude, y=Latitude)) +
-  geom_point(aes(group=timeGroup, col=straight), size = 1) +
+#to check duplicates, etc.
+eff$PCTime %in% str8segs$UTC
+eff[duplicated(eff),]
+eff[duplicated(eff$PCTime),]
+# dup <- as.data.frame(table(df2$UTC))
+# dup[dup$Freq >1,]
+ 
+df1 <- as.data.frame(as.POSIXct(str8segs$UTC ))
+colnames(df1) <- "UTC"
+
+df2 <- data.frame(as.POSIXct(eff$PCTime), eff$ac_effort, eff$vis_effort)
+colnames(df2) <- c("UTC", "aeffort", "veffort")
+
+setDT(df1)
+setDT(df2)
+
+df1[, date := UTC] #creates duplicate of UTC
+setkey(df1, date) #set column to perform the join on
+setkey(df2, UTC)
+
+join = df2[df1, roll = Inf]
+
+
+str8eff <- data.frame(str8segs, join$aeffort, join$veffort) %>% drop_na(join.aeffort)
+
+# what3 <- filter(test, straight == 'TRUE' & ac_effort == 'on')
+
+
+
+#Plot results of effort with sperm whales
+
+(myPlot2 <- ggplot(str8eff, aes(x=Longitude, y=Latitude)) +
+  geom_point(aes(group=timeGroup, col=join.aeffort), size = 1) +
   scale_color_manual(values = c('red', 'darkgreen')) +
   
   geom_point(data=str8SW, mapping = aes(lon2, lat), shape = 15) +
   ggtitle(paste0('nSmall=', nSmall, ", nLarge=", nLarge, " , Thld=", thld, 
-                 ", TimeDiff=", str8segs$timeDiff[1], 's'))
-print(myPlot)
+                 ", TimeDiff=", str8segs$timeDiff[1], 's')))
+
+
+write.csv(str8eff, here::here('output', paste0('straightPathWeffort_', survey, '.csv')), row.names = FALSE)
+
+
+
+
+#try again
+setDT(reference)[data, refvalue, roll = "nearest", on = "datetime"]
+indx <- setDT(reference)[data, roll = "nearest", which = TRUE, on = "datetime"]
+
+
+take29 <-as.data.frame(setDT(effdates)[alldates, effort, roll = Inf, on = "UTC"])
+indx <- setDT(effdates)[alldates, roll = Inf, which = TRUE, on = "UTC"]
+alldates$new <- indx
+
+
+#does not match to nearest, lots are missing
+test <- setDT(alldates)[effdates, c("effort") := .(effort), on=c("UTC")]
+test2 <- test %>% fill(effort, .direction = "down") %>% na.omit()
+
+what <- setDT(str8sub1303)[eff, c("ac_effort") := .(effort), on=c("UTC")]
+what2 <- what %>% fill(ac_effort, .direction = "down") %>% drop_na(ac_effort)
+
+what3 <- filter(what2, straight == 'TRUE' & ac_effort == 'on')
+
+ 
+
 
 ```
 
