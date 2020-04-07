@@ -282,8 +282,9 @@ http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d346_28ac_fccf.csv?pot
 
 #Chlorophyll
 ```{r}
-#Used monthly ~YB 3/3/20
-#Monthly 4km Chla. Long= 0-360
+#http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_69ee_7d0d_74e6.csv?chlor_a[(2020-02-01T00:00:00Z):1:(2020-02-01T00:00:00Z)][(-89.9792):1:(89.97913477299998)][(-179.97917):1:(179.97916621300004)]
+#Monthly 4km Chla. 
+
 lon = sw$lon
 chla_mon=rep(NA,4)
 for (i in 1:length(lon)) {
@@ -646,7 +647,7 @@ flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data'
 # Open a connection to the first file in our list
 # nc <- nc_open(paste0(wd, "\\", flist[4]))
 
-ncname = paste0(here('data'), '/', flist[7])
+ncname = paste0(here::here('data'), '/', flist[7])
 
 nc <- tidync(ncname)
 print(nc)
@@ -793,7 +794,7 @@ colnames(slp_asp) <- c('lon', 'lat', 'slope', 'aspect')
 
 ```
 
-Find best match of slope and aspect with sperm whale locations
+#Match slope and aspect with sperm whale locations
 ```{r}
 #load slope/aspect data for entire region
 slope_aspdf <- readRDS(here('data', 'bathy_tot.rda')) 
@@ -891,7 +892,7 @@ for (i in 1:length(lon)) {
 ww3=ww3[-1,]
 names(ww3) = c("date", "matched_lat", "matched_lon", "whght", "wtime")
 
-ww3$wavepow = (1024*9.8)/(64*pi)*ww3$whght^2*ww3$wtime
+ww3$wavepow = (1024*9.8^2)/(64*pi)*ww3$whght^2*ww3$wtime
 
 #previous code below
 #####
