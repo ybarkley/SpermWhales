@@ -1,0 +1,137 @@
+---
+title: "SSH netcdf"
+author: "Yvonne Barkley"
+date: "4/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Standard deviation SSH
+```{r}
+library(tidyverse)
+library(tidync)
+library(ncdf4)
+
+
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+
+sshnc = paste0(here::here('data'), '/', flist[10])
+
+nc <- nc_open(sshnc)
+attributes(nc$var)$names
+
+#check out what's in it
+tidync(sshnc)
+
+#Stack/brick (bricks linked to a single multilayer file) for each variable, uo, vo, zos
+# Bricks are more efficient, read to single file vs multiple files 
+#eastward velocity = uo
+sshb <-brick(sshnc, varname="zos") 
+# values(sshb)
+# crs(sshb)
+nout = nlayers(sshb)
+
+
+sshtotal = NULL
+for (band in 1:nout) {
+  start = sshb[[band]]
+  foc = focal(start, w=matrix(1,3,3), fun=sd)
+  df = as.data.frame(rasterToPoints(foc))
+  colnames(Udf) <- c("lon", "lat", band)
+  sshtotal = cbind(sshtotal, df[, 3])
+  
+}
+sshZtotal <- as_tibble(cbind(df[,1:2], sshtotal))
+
+#'Gather' times to tidy up
+sshZtidya <- gather(sshZtotal[,3:94], key='date', value = sshsd) #drops lat & lon
+
+
+# getting dates from bands?
+# units: hours since 1950-01-01
+name <- names(sshb)
+namesplit <- strsplit(name, "X", fixed=T)
+namedf <- data.frame(matrix(unlist(namesplit), nrow=length(namesplit), byrow=TRUE))
+colnames(namedf) <- c('X', 'date')
+
+namedate <- as.numeric(levels(namedf$date))[namedf$date]
+convert_time(529944) #from rerddap
+
+date_test <- as.POSIXct(namedate*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+
+
+#Only works with single raster layers, not stacks or bricks. standard deviation using 3x3 pixels
+sshr <- raster(sshnc, varname = 'zos')
+sshr <- sshb[[89]]
+
+sshm <- calc(sshr, mean)
+sshm2 <- cellStats(sshr, mean) #output is single number
+sshDFm2 <- rasterToPoints(sshm2)
+
+sshDF <- rasterToPoints((sshr))
+sshDF2 <- rasterToPoints((sshm))
+sshsd <- calc(sshr, sd)
+
+
+sshfoc <- focal(sshr, w=matrix(1,3,3), fun=sd)
+sshDF <- rasterToPoints(sshfoc)
+as.POSIXct(529944*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+#Import all rasters by band #, run focal on them for sd, then save to spdf
+
+swOct17 <- read.csv("C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data/Spermies_Oct2017.csv", header=TRUE)
+swOct17$xlon2 <- swOct17$xlon+360
+dirfig = "C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures/"
+
+png(paste0(dirfig, "SSH_Oct2017.png"), width = 1000, height = 600)
+plot(sshr, main = "Oct 2017 SSH Monthly Mean (m)")
+par(new=TRUE)
+plot(swOct17$xlon2, swOct17$ylat, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+dev.off()
+
+png(paste0(dirfig, "SSHsd_Oct2017.png"), width = 1000, height = 600)
+plot(sshfoc, main = "Oct 2017 Standard Deviation SSH (m)")
+par(new=TRUE)
+plot(swOct17$xlon2, swOct17$ylat, col="black", pch=16, cex=1,xlab='', ylab='', axes=F)
+
+dev.off()
+
+
+
+
+
+
+
+```
+
+#SST standard deviation
+```{r}
+sstnc = paste0(here::here('data'), '/', flist[13])
+tidync(sstnc)
+sstr <- raster(sstnc, varname = 'sst')
+sstfoc <- focal(sstr, w=matrix(1,3,3), fun=sd)
+
+png(paste0(dirfig, "SST_Oct2017.png"), width = 600, height = 400)
+plot(sstr, main="Oct 2017 Monthly Mean SST")
+par(new=TRUE)
+plot(swOct17$xlon, swOct17$ylat, col="black", pch=16, cex=1,xlab='', ylab='', axes=F)
+dev.off()
+
+png(paste0(dirfig, "SSTsd_Oct2017.png"), width = 600, height = 400)
+plot(sstfoc, main = "Oct 2017 Standard Deviation SST (m)")
+par(new=TRUE)
+plot(swOct17$xlon, swOct17$ylat, col="black", pch=19, cex=1,xlab='', ylab='', axes=F)
+
+dev.off()
+
+
+
+
+
+
+
+```
+
