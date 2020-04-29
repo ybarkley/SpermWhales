@@ -72,7 +72,7 @@ library(here) #helps with stupid root dir and accessing subfolders, it's awesome
 # T = filter(T, T$Survey.Number != 1641 & T$Survey.Number != 1642)
 
 # sw <- read.csv(here('output', 'Spermies_20200304.csv'))
-sw <- read.csv(here::here('output', 'Spermies_20200310.csv'))
+sw <- read.csv(here::here('output', 'Spermies_20200424.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
 sw$lon2 = ifelse(sw$lon <1, sw$lon + 360, sw$lon)
 lon=sw$lon2
@@ -1013,9 +1013,9 @@ colnames(bathdat) = 'bath'
 dist2land = do.call(rbind.data.frame, dist2land_match)
 colnames(dist2land) = 'dist2land'
 
-#nmin and aux data
+#Add nmin, nclk, and aux data
 require(openxlsx)
-nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath.xlsx'), sheet=2)
+nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath.xlsx'), sheet=3)
 nmin <- unite(nmintmp, "ID", survey, acid, remove = F)
 
 #combine SW data and env data

@@ -39,7 +39,7 @@ library(rerddap)
 
 # 1. load detection dataset
 ```{r message=F}
-
+#Load output from 1_TidySpermWhale code
 sw <- read.csv(here::here('output', 'Spermies_20200310.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
 sw$lon2 = ifelse(sw$lon <1, sw$lon + 360, sw$lon) #need 0-360 longitude for some datasets
