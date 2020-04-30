@@ -28,10 +28,12 @@ It mainly works in the csv_results dir and binds the localization data from the 
 Localizations can include one or two peaks, which creates a different number of columns from the MATLAB output. 
 First, deal with them separately, then combine them.
 ```{r message=F}
-sperm.dat <- read_csv('./data/Spermies_LOCandSIGHT.csv') #older file, but mostly using it to get ID label
-sperm.datsub <- sperm.dat[,c(3,5:7)]
+#Load data that includes only localized acoustic encounters and sighted encounters
+sperm.dat <- read_csv('./data/Spermies_LOCandSIGHT.csv') #using it to get ID label and trackline lat/lon
+sperm.datsub <- sperm.dat[,c(3,5:7, 19, 20)]
 
-sperm.datsub <- unite(sperm.datsub, "ID", Survey.Number, Acoustic.ID, Sighting.ID)
+sperm.datsub <- unite(sperm.datsub, "ID", Survey.Number, Acoustic.ID, Sighting.ID, remove=FALSE)
+colnames(sperm.datsub) <- c('ID', 'survey', 'acid', 'sid', 'UTC', 'lat_trk', 'lon_trk')
 
 #Find which ones have 1 or 2 peaks
 # fpath = ("C:\\Users\\yvers\\Documents\\CHP 2\\data\\Chp2_Localizations\\csv_results")
@@ -80,7 +82,7 @@ peak1 <- unite(peak1, "ID", survey, acid, sid, remove = F)
 peak1 <- merge(peak1, sperm.datsub, by.x='ID', by.y = 'ID')
 
 
-#####CHECK THIS OUT, OVER HERE!!!! ####
+##### CHECK THIS OUT, OVER HERE!!!! ####
 # Since YB went back and redid the straight line encounters to get lat/lons for the second peaks, the encounters that truly only had a single peak need to have the columns with the second peak locations dealt with...THEY ARE DEALT WITH line 63
 
 ```
@@ -114,9 +116,8 @@ peak2 <- merge(peak2, sperm.datsub, by.x='ID', by.y = 'ID')
 
 ```
 
+#Combine Localized Encounters
 ```{r}
-
-
 
 pmAll <- bind_rows(peak1, peak2, .id = 'peaks')
 
@@ -152,6 +153,7 @@ pmTidy6$peak <- 'B'
 pmTidy <- bind_rows(pmTidy1, pmTidy2, pmTidy3, pmTidy4, pmTidy5, pmTidy6)
 pmTidy <- dplyr::select(pmTidy, 'survey', 'acid', 'sid', 'ID', 'UTC', 'peak', 'itrk', 'type', 'lat' ,'lon', 'pdist')
 
+#removes rows with NAs
 pmTidy <- pmTidy[complete.cases(pmTidy), ]
 
 
@@ -159,6 +161,11 @@ pmTidy <- pmTidy[complete.cases(pmTidy), ]
 # pmTidy <- filter(pmTidy, ID != '1303_24')
 #ALSO NEED TO REMOVE 1705_112 peak A, type max
 pmTidy <- filter(pmTidy, ID != '1705_112' | peak !='A')
+
+#convert pdist to km
+pmTidy$pdist <- round(pmTidy$pdist/1000, 2)
+
+pmTidy <- merge(pmTidy, sperm.datsub[, c("ID", "lat_trk", "lon_trk")], by='ID')
 
 
 # write.csv(pmTidy,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/Spermies_20200424.csv', row.names = F)
@@ -169,35 +176,50 @@ pmTidy <- filter(pmTidy, ID != '1705_112' | peak !='A')
 
 #Sighted encounters
 ```{r}
-vid <- sperm.dat[,c(3,5:7, 19, 20)]
-vid2 <-filter(vid, vid$Sighting.ID < 999)
-vid3 <- unite(vid2, "ID", Survey.Number, Acoustic.ID, Sighting.ID)
-pmTidyv <- cbind(vid2[1:3], vid3)
-colnames(pmTidyv) <- c('survey', 'acid', 'sid', 'ID', 'UTC', 'lat', 'lon')
+#add visual distances to pmTidyv from Spermies_SIGHTdata (subset from Amanda's file)
+sw.vis <- read.csv(here::here('data', 'Spermies_SIGHTdata.csv'))
+
+
+# vid <- sperm.dat[,c(3,5:7, 19, 20)]
+vid2 <-filter(sperm.datsub, sperm.datsub$sid < 999)
+vid3 <- unite(vid2, "ID", survey, acid, sid, remove=FALSE)
+pmTidyv <- dplyr::select(vid3, ID, everything())
+
+
+#make new ID column with survey and sid for matching data purposes
+id2 <- unite(pmTidyv, "ID2", survey, sid, remove=FALSE)
+id2v <- unite(sw.vis, "ID2", CruzNo, SightNo)
+
+
+#merge/combine distances and group sizes from sighting data with times and lat/lons from acoustic data
+pmTidyv2 <- merge(id2, id2v[, c("ID2", "distance", "SP046")], by='ID2')
+pmTidyv2 <- rename(pmTidyv2, pdist = distance, grpsize = SP046)
+pmTidyv2 <- pmTidyv2[,-1]
 
 ```
 
 #Unlocalized encounters
 ```{r}
-
 sw.unloc <- read.csv(here::here('data', 'Spermies_UNLOCALIZED.csv'))
 sw.unloc2 <- sw.unloc[,c(3,5:7,14,15)]
 sw.unloc3 <- unite(sw.unloc2, "ID", Survey.Number, Acoustic.ID, Sighting.ID)
 pmTidyun <- cbind(sw.unloc2[1:3], sw.unloc3)
-colnames(pmTidyun) <- c('survey', 'acid', 'sid', 'ID', 'UTC', 'lat', 'lon')
+colnames(pmTidyun) <- c('survey', 'acid', 'sid', 'ID', 'UTC', 'lat_trk', 'lon_trk')
 
 
 ```
 
+
 ```{r}
 #combine only localized and sighted encounters
-pmTidyLOCandSIGHT <- bind_rows(pmTidy, pmTidyv)
+pmTidyLOCandSIGHT <- bind_rows(pmTidy, pmTidyv2)
+#sort columns by survey and acID numbers
 pmTidyLOCandSIGHT <- arrange(pmTidyLOCandSIGHT, survey, acid)
 
 
 
 #combine all encounters
-pmTidyALL <- bind_rows(pmTidy, pmTidyv, pmTidyun)
+pmTidyALL <- bind_rows(pmTidy, pmTidyv2, pmTidyun)
 pmTidyALL <- arrange(pmTidyALL, survey, acid)
 
 
