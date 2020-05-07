@@ -41,7 +41,7 @@ for (band in 1:nout) {
   start = sshb[[band]]
   foc = focal(start, w=matrix(1,3,3), fun=sd)
   df = as.data.frame(rasterToPoints(foc))
-  colnames(Udf) <- c("lon", "lat", band)
+  colnames(df) <- c("lon", "lat", band)
   sshtotal = cbind(sshtotal, df[, 3])
   
 }

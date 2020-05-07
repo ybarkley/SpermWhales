@@ -40,13 +40,27 @@ library(rerddap)
 # 1. load detection dataset
 ```{r message=F}
 #Load output from 1_TidySpermWhale code
-sw <- read.csv(here::here('output', 'Spermies_20200310.csv'))
+sw <- read.csv(here::here('output', 'SpermiesALL_20200501.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
-sw$lon2 = ifelse(sw$lon <1, sw$lon + 360, sw$lon) #need 0-360 longitude for some datasets
-lon=sw$lon
-lat=sw$lat
-dates=sw$UTC
 
+sw.loc <- filter(sw, sw$loc==1)
+sw.unlocvis <- filter(sw, sw$loc==0)
+
+#need 0-360 longitude for some datasets
+sw.loc$lon2 = ifelse(sw.loc$lon <1, sw.loc$lon + 360, sw.loc$lon) 
+sw.unlocvis$lon2 = ifelse(sw.unlocvis$lon_trk <1, sw.unlocvis$lon_trk + 360, sw.unlocvis$lon_trk)
+sw <- bind_rows(sw.loc, sw.unlocvis)
+
+#set up for locaation estimates from localized data
+lon = sw.loc$lon
+lat=sw.loc$lat
+dates=sw.loc$UTC
+
+
+#set up for trackline locations
+lon = sw.unlocvis$lon_trk
+lat=sw.unlocvis$lat_trk
+dates=sw.unlocvis$UTC
 
 ```
 
@@ -59,7 +73,7 @@ dates=sw$UTC
 #Uses the url for the csv file from the erddap data access form.
 #Example url: 
 # https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
-
+# https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16T00:00:00Z):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
 
 #Longitude -180 180
 
@@ -123,10 +137,11 @@ names(wind_ascat2) = c("date", "matched_lat", "matched_lon", "wsp")
 This is a little awkward in that there are 3 different depths that should loop through each depth and saved accordingly. I set it up brute forcefully...
 ```{r}
 #Long= 0 360
-lon=sw$lon2
+# lon=sw$lon2
+lon=sw.unlocvis$lon2
 
 #choose a depth for dep (100, 500, 600)
-dep = 100
+dep = 600
 godas = paste0('godas', dep)
 
 
@@ -143,6 +158,7 @@ names(godas) = c("date", "depth", "matched_lat", "matched_lon", paste0("potempK"
 godas100 <- godas
 godas500 <- godas
 godas600 <- godas
+
 ```
 
 
@@ -204,7 +220,7 @@ wd = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data'
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
 # Open a connection to the correct nc file in the list
-ncname = paste0(here::here('data'), '/', flist[1])
+ncname = paste0(here::here('data'), '/', flist[11])
 
 
 # TAKE A SLICE OF THE DATA BASED ON LOCATION OF INTEREST ----> hyper_tibble selects the depth variable, z, to orient the locations
@@ -215,27 +231,43 @@ lonrange2 = c(180, 177)
 latrange = c(15, 32)
 
 # Take slices of nc file covering both longitude ranges
-bathy_slice <- flist[1] %>% hyper_filter(lon = lon <= lonrange1[1] & lon >= lonrange[2], 
+bathy_slice <- flist[11] %>% hyper_filter(lon = lon <= lonrange1[1] & lon >= lonrange[2], 
                        lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
 
-bathy_slice2 <- flist[3] %>% hyper_filter(lon = lon <= lonrange2[1] & lon >= lonrange2[2], 
+bathy_slice2 <- flist[11] %>% hyper_filter(lon = lon <= lonrange2[1] & lon >= lonrange2[2], 
                        lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
 
 
 #combine all slices  
 bathy_tot <- rbind(bathy_slice, bathy_slice2)
+```
 
+#Load Bathy data
+```{r}
 
 #find the bathy data closest to each whale location/grid midpoint
+
+bathy_tot <- readRDS(here('data', 'bathy_tot.rda'))  #can also name it something different if needed
+
 bath_match = list()
 
-for (i in 1:nrow(sw)){
+#for UNlocalized and sighed data
+for (i in 1:nrow(sw.unlocvis)){
  
-  lontmp <- which(abs(bathy_tot$lon-sw$lon[i]) == min(abs(bathy_tot$lon-sw$lon[i])) & 
-                    abs(bathy_tot$lat-sw$lat[i]) == min(abs(bathy_tot$lat-sw$lat[i])))
+  lontmp <- which(abs(bathy_tot$lon-sw.unlocvis$lon_trk[i]) == min(abs(bathy_tot$lon-sw.unlocvis$lon_trk[i])) & 
+                    abs(bathy_tot$lat-sw.unlocvis$lat_trk[i]) == min(abs(bathy_tot$lat-sw.unlocvis$lat_trk[i])))
   btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
   bath_match <- append(bath_match, btmp)
 }
+
+#for Localized data
+# for (i in 1:nrow(sw)){
+#  
+#   lontmp <- which(abs(bathy_tot$lon-sw$lon[i]) == min(abs(bathy_tot$lon-sw$lon[i])) & 
+#                     abs(bathy_tot$lat-sw$lat[i]) == min(abs(bathy_tot$lat-sw$lat[i])))
+#   btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
+#   bath_match <- append(bath_match, btmp)
+# }
 
 #bathymetry data
 bathdat = do.call(rbind.data.frame, bath_match)
@@ -275,20 +307,37 @@ slope_aspdf <- rasterToPoints(slope_aspHI)
 colnames(slope_aspdf) <- c('lon', 'lat', 'slope', 'aspect')
 
 slope_aspdf2 <- as.data.frame(slope_aspdf)
+```
 
-
+#Load slope and aspect data
+```{r}
 #find best match to whale locations (sw) or grid midpoints
+
+slope_aspdf2 <- readRDS(here('data', 'slope_aspHIdf.rda'))  #can also name it something different if needed
+slope_aspdf2 <- as.data.frame(slope_aspdf2)
+
 slp_asp_match = list()
-for (i in 1:nrow(sw)){
+
+#for UNlocalized and sighed data
+for (i in 1:nrow(sw.unlocvis)){
  
-  lontmp <- which(abs(slope_aspdf2$lon-sw$lon[i]) == min(abs(slope_aspdf2$lon-sw$lon[i])) & 
-                    abs(slope_aspdf2$lat-sw$lat[i]) == min(abs(slope_aspdf2$lat-sw$lat[i])))
-  
+  lontmp <- which(abs(slope_aspdf2$lon-sw.unlocvis$lon_trk[i]) == min(abs(slope_aspdf2$lon-sw.unlocvis$lon_trk[i])) & 
+                    abs(slope_aspdf2$lat-sw.unlocvis$lat_trk[i]) == min(abs(slope_aspdf2$lat-sw.unlocvis$lat_trk[i])))
   tmp <- slope_aspdf2[lontmp[1],] 
- 
   slp_asp_match <- rbind(slp_asp_match, tmp)
-  
 }
+
+#for Localized data
+# for (i in 1:nrow(sw)){
+#  
+#   lontmp <- which(abs(slope_aspdf2$lon-sw$lon[i]) == min(abs(slope_aspdf2$lon-sw$lon[i])) & 
+#                     abs(slope_aspdf2$lat-sw$lat[i]) == min(abs(slope_aspdf2$lat-sw$lat[i])))
+#   
+#   tmp <- slope_aspdf2[lontmp[1],] 
+#  
+#   slp_asp_match <- rbind(slp_asp_match, tmp)
+#   
+# }
 
 ```
 
@@ -299,12 +348,12 @@ Also uses nc file located at the VERY BOTTOM of the webpage, so far at the botto
 "dist_to_GSHHG_v2.3.7_1m.nc" 
 
 ```{r}
-
+#Use 0-360 for lon
 # retrieve a list of nc files in my data folder:
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
 # Open a connection to the first file in our list
-ncname = paste0(here('data'), '/', flist[2])
+ncname = paste0(here('data'), '/', flist[4])
 
 # TAKE A SLICE OF THE DATA BASED ON LOCATION OF INTEREST ----> hyper_tibble selects the depth variable, z, to orient the locations
 
@@ -325,7 +374,7 @@ dist2land_match = list()
 for (i in 1:nrow(sw)){
  
   lontmp <- which(abs(dist_slice$lon-sw$lon2[i]) == min(abs(dist_slice$lon-sw$lon2[i])) & 
-                    abs(dist_slice$lat-sw$lat[i]) == min(abs(dist_slice$lat-sw$lat[i])))
+                    abs(dist_slice$lat-sw$lat_trk[i]) == min(abs(dist_slice$lat-sw$lat_trk[i])))
   dtmp <- dist_slice$dist[lontmp[1]] #some had duplicates, so take the first one
   dist2land_match <- append(dist2land_match, dtmp)
 }
@@ -357,12 +406,192 @@ This step will be modified to work with the grid space.
 ```{r}
 
 #combine SW data and env data
-SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm, 'temp105C' = godas100$potempK100, 'temp459C' = godas500$potempK500, 'temp584C' = godas600$potempK600, 'chla_m' = chla_mon$matched_chla_mon, 'par_m' = par_m$par_m, 'ssh' = ssh$ssh, 'bath' = bathdat, 'slp_deg' = slp_asp_match$slope, 'asp_deg' = slp_asp_match$aspect, 'd2land_km' = dist2land$dist2land, 'wind_ms' = wind_ascat$wsp, 'wavepow' = ww3$wavepow))
+SwEnvData <- as_tibble(cbind(sw.unlocvis, 'sstAQ_m' = sst$sstAQm, 
+                             'temp100C' = godas100$potempK100, 
+                             'temp500C' = godas500$potempK500, 
+                             'temp600C' = godas600$potempK600, 
+                             'chla_m' = chla_mon$matched_chla_mon, 
+                             'par_m' = par_m$par_m, 
+                             'ssh' = ssh$ssh, 
+                             'bath' = bathdat, 
+                             'slp_deg' = slp_asp_match$slope, 
+                             'asp_deg' = slp_asp_match$aspect, 
+                             'd2land_km' = dist2land$dist2land, 
+                             'wind_ms' = wind_ascat2$wsp, 
+                             'wavepow' = ww3$wavepow))
+
+write.csv(SwEnvData, here::here('output', 'SpermiesWithEnvDataVisUnloc_20200430.csv'), row.names = F)
+```
+
+
+#Combine previous env data from LOCALIZED data with SIGHTED and UNLOC data
+```{r}
+SwEnvDataLOC <- read.csv(here::here('output', 'SpermiesWithEnvData_20200326.csv'))
+SwEnvDataLOC$UTC = mdy_hms(SwEnvDataLOC$UTC, truncated = 2)
+SwEnvDataLOC <- SwEnvDataLOC[, -c(6:12)]
+SwEnvDataLOC$loc <- 1
+#make new ID col
+ID<-unite(SwEnvDataLOC, "ID", survey, acid, sid, remove=FALSE)
+SwEnvDataLOC <- cbind(ID[2], SwEnvDataLOC[2:26])
+
+#bind all data together with env data
+SwEnvDataALL <- bind_rows(SwEnvDataLOC, SwEnvData)
+
+SwEnvData_pred <- dplyr::select(SwEnvDataALL, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+SwEnvData_scale <- cbind(dplyr::select(SwEnvDataALL, ID:lon2, loc:grpsize), SwEnvData_scale)
+write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataALL_20200506-scaled.csv'), row.names = F)
+
+write.csv(SwEncDataALL, here::here('output', 'SpermiesWithEnvDataALL_202000506.csv'), row.names = F)
+
+```
+
+
+#Left vs Right for Localized Data
+```{r}
+# SCALE and CENTER PREDICTORS
+
+#filter for predictors only
+SwEnvData_pred <- dplyr::select(SwEnvDataLOC, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+SwEnvDataLOC_scale <- cbind(dplyr::select(SwEnvDataLOC, ID:pdist), SwEnvData_scale)
+# write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataLOC_20200506-scaled.csv'), row.names = F)
+
+sw.best <- filter(SwEnvDataLOC_scale, SwEnvDataLOC_scale$type == 'best') 
+sw.bestA <- filter(SwEnvDataLOC_scale, SwEnvDataLOC_scale$type == 'best' & SwEnvDataLOC_scale$peak == 'A')
+sw.bestB <- filter(SwEnvDataLOC_scale, SwEnvDataLOC_scale$type == 'best' & SwEnvDataLOC_scale$peak == 'B')
+
+#find the IDs that don't match between the dataframes
+temp <-sw.bestA$ID[!(sw.bestA$ID %in% sw.bestB$ID)] #A has more rows than B, find the IDs that are different
+temp2 <-sw.bestB$ID[!(sw.bestB$ID %in% sw.bestA$ID)] #A has more rows than B, find the IDs that are different
+
+#remove the rows in the dataframes with that IDs that don't match
+sw.bestA2 <- sw.bestA[!sw.bestA$ID %in% temp, ]
+sw.bestB2 <- sw.bestB[!sw.bestB$ID %in% temp2, ]
+
+
+
+
+#sst
+plot(sw.bestA2$sstAQ_m, sw.bestB2$sstAQ_m)
+
+plot(sw.bestA2$temp100C, sw.bestB2$temp100C)
+plot(sw.bestA2$temp500C, sw.bestB2$temp500C)
+plot(sw.bestA2$temp600C, sw.bestB2$temp600C)
+
+
+plot(sw.bestA2$chla_m, sw.bestB2$chla_m)
+plot(sw.bestA2$par_m, sw.bestB2$par_m)
+
+#!!!
+par(mfrow=c(2, 2))
+
+plot(sw.bestA2$bath, sw.bestB2$bath, main="bathymetric depth")
+
+plot(sw.bestA2$slp_deg, sw.bestB2$slp_deg, main = 'slope')
+
+plot(sw.bestA2$asp_deg, sw.bestB2$asp_deg, main = 'aspect')
+
+plot(sw.bestA2$wavepow, sw.bestB2$wavepow, main = 'wave power')
+which.max(sw.bestB2$wavepow)
+###
+
+plot(sw.bestA2$d2land_km, sw.bestB2$d2land_km)
+
+plot(sw.bestA2$wind_ms, sw.bestB2$wind_ms)
+
+plot(sw.bestA2$ssh, sw.bestB2$ssh)
+
+```
+
+
+#add in aux data (nmin, nclk, etc.)
+```{r}
+#Add nmin, nclk, and aux data
+require(openxlsx)
+nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath_use.xlsx'), sheet=2)
+nmin <- unite(nmintmp, "ID", survey, acid, vid, remove = F)
+
+SwEnvData_tot <- merge(nmin, SwEnvData, by.x='ID', by.y = 'ID')
+SwEnvData_tot <- SwEnvData_tot[, -c(2,8,13,14)]
+SwEnvData_tot <- dplyr::select(SwEnvData_tot, ID, 'survey'=survey.x, 'acid'=acid.x, UTC, everything())
+
+
 
 
 ```
 
 
+#Scale and center predictors
+```{r}
 
+#load data set
+dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/'
+SwEnvData_tot <- read.csv(paste0(dir, 'SpermiesWithEnvData_20200326.csv'))
+
+# center and scale predictors
+SwEnvData_pred <- select(SwEnvData_tot, lat, lon2, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+SwEnvData_scale <- cbind(select(SwEnvData_tot, ID:type, pdist), SwEnvData_scale)
+write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvData_20200326-scaled.csv'), row.names = F)
+
+#for unlocalized and sighted data from above
+SwEnvData_pred <- dplyr::select(SwEnvData, lat_trk, lon2, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+
+
+
+
+
+# OR center data with 'colMeans()', from https://www.gastonsanchez.com/visually-enforced/how-to/2014/01/15/Center-data-in-R/
+
+#mean-centering function
+# center_colmeans <- function(x) {
+#   xcenter = colMeans(x)
+#   x - rep(xcenter, rep.int(nrow(x), ncol(x)))
+# }
+
+# SwEnvData_cent <- center_colmeans(SwEnvData_pred)
+# SwEnvData_cent <- cbind(select(SwEnvData_tot, ID:type, pdist), SwEnvData_cent)
+
+
+
+#melt data into long format then plot
+SwSome <- select(SwEnvData_scale, ID, sstAQ_m:wavepow)
+
+SwDynamic <- select(SwSome, -(c(bath, d2land_km, slp_deg, asp_deg)))
+# SwDynamic <- select(SwSome, ID, chla_m)
+SwMeltDyn <- melt(SwDynamic, id.vars = 'ID')
+
+boxDyn <- ggplot(SwMeltDyn, aes(variable, value)) +
+  geom_boxplot()
+boxDyn
+ggsave(paste0(dir, 'boxplot_dynamic-scaled.png'), width = 6, height = 4)
+# ggsave(paste0(dir, 'boxplot_chla.png'), width = 6, height = 4)
+# ggsave(paste0(dir, 'boxplot_ssh.png'), width = 6, height = 4)
+
+
+###
+SwStatic <- select(SwEnvData_scale, ID, bath, d2land_km, slp_deg, asp_deg)
+SwStatic <- select(SwEnvData_tot, ID, d2land_km)
+SwMeltStat <- melt(SwStatic, id.vars = 'ID')
+
+boxStat <- ggplot(SwMeltStat, aes(variable, value)) +
+  geom_boxplot()
+boxStat
+
+ggsave(paste0(dir, 'boxplot_static-scaled.png'), width = 6, height = 4)
+# ggsave(paste0(dir, 'boxplot_slope.png'), width = 6, height = 4)
+
+
+###
+SwLatLon <- select(SwEnvData_scale, ID, lat, lon2)
+SwMeltLatLon <- melt(SwLatLon, id.vars = 'ID')
+
+boxlatLon <- ggplot(SwMeltLatLon, aes(variable, value)) +
+  geom_boxplot()
+boxlatLon
+ggsave(paste0(dir, 'boxplot_latlon-scaled.png'), width = 6, height = 4)
+```
 
 
