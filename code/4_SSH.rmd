@@ -8,9 +8,15 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+This code uses the data from 'global-reanalysis-phy-001-030-monthly_SSHAUV.nc' in the data folder to calculate the SSHsd and EKE from u, v, ssh data. 
+Data were pulled from June 2010-Dec 2017, with 92 layers in the nc file that represent each month. The date format is 'hours since Jan-1-1950'. They are converted below into 'ssh_dates'.
 
 
 #Standard deviation SSH
+
+This uses the data from CMEMS instead of GODAS. There are several papers that use this data set to get ssh, sshsd, and EKE.
+
+
 ```{r}
 library(tidyverse)
 library(tidync)
@@ -33,71 +39,317 @@ tidync(sshnc)
 sshb <-brick(sshnc, varname="zos") 
 # values(sshb)
 # crs(sshb)
-nout = nlayers(sshb)
 
-
-sshtotal = NULL
-for (band in 1:nout) {
-  start = sshb[[band]]
-  foc = focal(start, w=matrix(1,3,3), fun=sd)
-  df = as.data.frame(rasterToPoints(foc))
-  colnames(df) <- c("lon", "lat", band)
-  sshtotal = cbind(sshtotal, df[, 3])
-  
-}
-sshZtotal <- as_tibble(cbind(df[,1:2], sshtotal))
-
-#'Gather' times to tidy up
-sshZtidya <- gather(sshZtotal[,3:94], key='date', value = sshsd) #drops lat & lon
-
-
+## Names of layers, which are the dates
 # getting dates from bands?
 # units: hours since 1950-01-01
-name <- names(sshb)
-namesplit <- strsplit(name, "X", fixed=T)
-namedf <- data.frame(matrix(unlist(namesplit), nrow=length(namesplit), byrow=TRUE))
+name <- names(sshb) #name of each layer (which is the month)
+namesplit <- strsplit(name, "X", fixed=T) #split off the 'X' in front of the number
+namedf <- data.frame(matrix(unlist(namesplit), nrow=length(namesplit), byrow=TRUE)) 
 colnames(namedf) <- c('X', 'date')
 
 namedate <- as.numeric(levels(namedf$date))[namedf$date]
-convert_time(529944) #from rerddap
+namedate <- as.POSIXct(namedate*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
 
-date_test <- as.POSIXct(namedate*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+nout = nlayers(sshb) #layers represent months in the brick
 
 
+################ SSH ####################
+#Get the SSH
+sshtotal = NULL
+for (band in 1:nout) {
+  start = sshb[[band]] #select a band/month
+  df = as.data.frame(rasterToPoints(start)) #convert rasterlayer into df
+  colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
+  sshtotal = cbind(sshtotal, df[, 3]) #each column is the SSHsd for each month
+  
+} 
+#save sshtotal
+saveRDS(sshtotal, file = paste0(here::here('data'), '/', 'ssh_total.rda'))
+
+# sshtotal <- as_tibble(cbind(df[,1:2], sshtotal)) 
+#need column names to be the actual dates
+sshtotaldat <- sshtotal[3:94]
+
+
+colnames(sshtotaldat) <- namedate
+sshtotal <- cbind(sshtotal[,1:2], sshtotaldat) #add lon lat back in
+sshtidya <- sshtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'ssh')
+sshtidya$date <- as.POSIXct(sshtidya$date)
+
+#save sshtotal
+saveRDS(sshtidya, file = paste0(here::here('data'), '/', 'ssh_tidy.rda'))
+
+ssh_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(sshtidya$lon-sw$lon2[i]) == min(abs(sshtidya$lon-sw$lon2[i])) & 
+                    abs(sshtidya$lat-sw$lat[i]) == min(abs(sshtidya$lat-sw$lat[i])) &
+                    abs(sshtidya$date-sw$UTC[i]) == min(abs(sshtidya$date-sw$UTC[i])))
+  sshtmp <- sshtidya[lontmp[1],] #some had duplicates, so take the first one
+  ssh_match <- rbind(ssh_match, sshtmp)
+}
+
+
+
+
+
+################ SSH SD  ####################
+#Get the standard deviation of SSH
+sshsdtotal = NULL
+for (band in 1:nout) {
+  start = sshb[[band]] #select a band/month
+  foc = focal(start, w=matrix(1,3,3), fun=sd) #use foc to take stand dev of each point using 3x3 cells
+  df = as.data.frame(rasterToPoints(foc)) #convert rasterlayer into df
+  colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
+  sshsdtotal = cbind(sshsdtotal, df[, 3]) #each column is the SSHsd for each month
+  
+} 
+saveRDS(sshsdtotal, file = paste0(here::here('data'), '/', 'sshsd_total.rda'))
+
+sshZtotal <- as_tibble(cbind(df[,1:2], sshsdtotal)) 
+#need column names to be the actual dates
+sshZtotaldat <- sshZtotal[3:94]
+
+colnames(sshZtotaldat) <- namedate
+sshZtotal <- cbind(sshZtotal[,1:2], sshZtotaldat)
+sshZtidya <- sshZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'sshsd')
+sshZtidya$date <- as.POSIXct(sshZtidya$date)
+
+#save tidy version sshsdtotal
+saveRDS(sshZtidya, file = paste0(here::here('data'), '/', 'sshsd_tidy.rda'))
+
+
+sshsd_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(sshZtidya$lon-sw$lon2[i]) == min(abs(sshZtidya$lon-sw$lon2[i])) & 
+                    abs(sshZtidya$lat-sw$lat[i]) == min(abs(sshZtidya$lat-sw$lat[i])) &
+                    abs(sshZtidya$date-sw$UTC[i]) == min(abs(sshZtidya$date-sw$UTC[i])))
+  sshsdtmp <- sshZtidya[lontmp[1],] #some had duplicates, so take the first one
+  sshsd_match <- rbind(sshsd_match, sshsdtmp)
+}
+
+```
+
+
+#Plotting SSH metrics with Spermie locations
+```{r}
 #Only works with single raster layers, not stacks or bricks. standard deviation using 3x3 pixels
 sshr <- raster(sshnc, varname = 'zos')
-sshr <- sshb[[89]]
+sshr <- sshb[[89]] # which month? Oct 2017
+
+# sshsd <- calc(sshr, sd) #doesn't work
 
 sshm <- calc(sshr, mean)
-sshm2 <- cellStats(sshr, mean) #output is single number
-sshDFm2 <- rasterToPoints(sshm2)
+sshm2 <- cellStats(sshr, mean) #output is single number, not used
 
-sshDF <- rasterToPoints((sshr))
-sshDF2 <- rasterToPoints((sshm))
-sshsd <- calc(sshr, sd)
+sshDF <- rasterToPoints((sshr)) #df of ssh for each location in raster
+sshDF2 <- rasterToPoints((sshm)) #same as sshDF
 
-
-sshfoc <- focal(sshr, w=matrix(1,3,3), fun=sd)
-sshDF <- rasterToPoints(sshfoc)
-as.POSIXct(529944*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+#uses focal on single raster layer fo Oct 2017
+sshfocsum <- focal(sshr, w=matrix(1,3,3), fun=sd)
+sshfocsumDF <- rasterToPoints(sshfocsum)
+as.POSIXct(594252*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") #check date
 #Import all rasters by band #, run focal on them for sd, then save to spdf
 
 swOct17 <- read.csv("C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data/Spermies_Oct2017.csv", header=TRUE)
 swOct17$xlon2 <- swOct17$xlon+360
 dirfig = "C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures/"
 
-png(paste0(dirfig, "SSH_Oct2017.png"), width = 1000, height = 600)
+#automatically saves figs in dirfig
+png(paste0(dirfig, "SSH_Oct2017_sum.png"), width = 1000, height = 600)
 plot(sshr, main = "Oct 2017 SSH Monthly Mean (m)")
 par(new=TRUE)
 plot(swOct17$xlon2, swOct17$ylat, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
 dev.off()
 
-png(paste0(dirfig, "SSHsd_Oct2017.png"), width = 1000, height = 600)
-plot(sshfoc, main = "Oct 2017 Standard Deviation SSH (m)")
+png(paste0(dirfig, "SSHsd_Oct2017_sum.png"), width = 1000, height = 600)
+plot(sshfocsum, main = "Oct 2017 Standard Deviation SSH (m)")
 par(new=TRUE)
 plot(swOct17$xlon2, swOct17$ylat, col="black", pch=16, cex=1,xlab='', ylab='', axes=F)
 
 dev.off()
+
+########################
+#Aug 2010
+sshr0810 <- sshb[[3]]
+sshfocsum0810 <- focal(sshr0810, w=matrix(1,3,3), fun=sd)
+sshfocpts0810 <- rasterToPoints(sshfocsum0810)
+sshfocsumDF0810 <- as.data.frame(sshfocpts0810)
+as.POSIXct(531420  *3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+
+
+#plot distribution of raster
+
+sshhist <- hist(sshr0810, breaks = 5, main = 'Histogram of SSH', col = 'purple', xlab="SSH (cm)")
+sshhistsd <- hist(sshfocsum0810, breaks = 6, main = 'Histogram of SSHsd', col = 'pink', xlab="SSHsd (cm)")
+
+int <- (sshfocsum0810@data@max-sshfocsum0810@data@min)/6
+
+pal = colorRampPalette(c("light green", "green", 'lightgoldenrod1', "red", 'red4'))
+plot(sshfocsum0810, #breaks = seq(sshfocsum0810@data@min, sshfocsum0810@data@max, by=int),
+col = pal(5),
+main = 'SSHsd Aug 2010')
+par(new=TRUE)
+plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+
+
+
+# plot(sshfocsum0810, breaks = c(0.000, 0.005, 0.010, 0.015, 0.020, 0.025, 0.030), 
+#      col = terrain.colors(6),
+#      main = 'SSHsd')
+# par(new=TRUE)
+# plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+
+swAug10 <- read.csv("C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data/Spermies_Aug2010.csv", header=TRUE)
+swAug10$xlon2 <- swAug10$lon_trk+360
+dirfig = "C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures/"
+
+
+png(paste0(dirfig, "SSH_Aug2010_sum.png"), width = 1000, height = 600)
+plot(sshr0810, main = "Aug 2010 SSH Monthly Mean (m)")
+par(new=TRUE)
+plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+dev.off()
+
+png(paste0(dirfig, "SSHsd_Aug2010_sum.png"), width = 1000, height = 600)
+plot(sshfocsum0810, main = "Aug 2010 Standard Deviation SSH (m)")
+par(new=TRUE)
+plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1,xlab='', ylab='', axes=F)
+
+dev.off()
+
+
+cuts= c(0.000, 0.005, 0.010, 0.015, 0.020, 0.025, 0.030)
+pal = colorRampPalette(c("light green", "green", "red"))
+
+plot(sshfocsum0810, breaks=cuts, col=pal(6))
+par(new=TRUE)
+plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+
+
+```
+
+
+
+#EKE using U & V data
+```{r}
+################ U data ####################
+# (E-W, meridian currents)
+
+ub <-brick(sshnc, varname="uo") 
+# values(ub)
+# crs(sshb)
+nout = nlayers(ub) 
+
+utotal = NULL
+for (band in 1:nout) {
+  start = ub[[band]] #select a band/month
+  # foc = focal(start, w=matrix(1,3,3), fun=sd) #use foc to take stand dev of each point using 3x3 cells
+  df = as.data.frame(rasterToPoints(foc)) #convert rasterlayer into df
+  colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
+  utotal = cbind(utotal, df[, 3]) #each column is the SSHsd for each month
+  
+} 
+uZtotal <- as_tibble(cbind(df[,1:2], utotal)) 
+#need column names to be the actual dates
+uZtotaldat <- uZtotal[3:94]
+colnames(uZtotaldat) <- namedate
+uZtotal <- cbind(uZtotal[,1:2], uZtotaldat)
+
+uZtidya <- uZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'u')
+
+
+
+################ V data ####################
+# (N-S, meridian currents)
+vb <-brick(sshnc, varname="vo") 
+
+vtotal = NULL
+for (band in 1:nout) {
+  start = vb[[band]] #select a band/month
+  # foc = focal(start, w=matrix(1,3,3), fun=sd) #use foc to take stand dev of each point using 3x3 cells
+  df = as.data.frame(rasterToPoints(foc)) #convert rasterlayer into df
+  colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
+  vtotal = cbind(vtotal, df[, 3]) #each column is the SSHsd for each month
+  
+} 
+vZtotal <- as_tibble(cbind(df[,1:2], vtotal)) 
+#need column names to be the actual dates
+vZtotaldat <- vZtotal[3:94]
+colnames(vZtotaldat) <- namedate
+vZtotal <- cbind(vZtotal[,1:2], vZtotaldat)
+
+vZtidya <- vZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'v')
+
+
+
+
+################ EKE data ####################
+# EKE=1/2x(U²+V²) - meridian and zonal geostrophic currents
+
+eke = 0.5*(uZtotaldat^2 + vZtotaldat^2) #all eke values, no lon/lat
+
+ekeZtotal <- as.data.frame(cbind(vZtotal[,1:2], eke)) 
+
+ekeZtidya <- ekeZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'eke')
+
+ekeZtidya$date <- as.POSIXct(ekeZtidya$date)
+
+
+eke_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(ekeZtidya$lon-sw$lon2[i]) == min(abs(ekeZtidya$lon-sw$lon2[i])) & 
+                    abs(ekeZtidya$lat-sw$lat[i]) == min(abs(ekeZtidya$lat-sw$lat[i])) &
+                    abs(ekeZtidya$date-sw$UTC[i]) == min(abs(ekeZtidya$date-sw$UTC[i])))
+  eketmp <- ekeZtidya[lontmp[1],] #some had duplicates, so take the first one
+  eke_match <- rbind(eke_match, eketmp)
+}
+
+hist(eke_match$eke)
+
+
+#turn df into raster. Each layer for each column of eke
+eker <- rasterFromXYZ(ekeZtotal)
+nlayers(eker)
+ 
+
+
+
+
+
+
+
+
+#maps
+#Aug 2010
+eke0810 <- eker[[3]]
+ufocsum0810 <- focal(u0810, w=matrix(1,3,3), fun=sd)
+
+ufocpts0810 <- rasterToPoints(ufocsum0810)
+ufocsumDF0810 <- as.data.frame(ufocpts0810)
+as.POSIXct(531420  *3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+
+
+
+#plot distribution of raster
+
+uhist <- hist(ub, breaks = 5, main = 'Histogram of SSH', col = 'purple', xlab="SSH (cm)")
+uhistsd <- hist(sshfocsum0810, breaks = 6, main = 'Histogram of SSHsd', col = 'pink', xlab="SSHsd (cm)")
+
+int <- (ufocsum0810@data@max-ufocsum0810@data@min)/6
+
+
+pal = colorRampPalette(c("light green", "green", 'lightgoldenrod1', "red", 'red4'))
+plot(ufocsum0810, #breaks = seq(sshfocsum0810@data@min, sshfocsum0810@data@max, by=int),
+col = pal(5),
+main = 'U Aug 2010')
+par(new=TRUE)
+plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='', axes=F)
+
+
 
 
 
@@ -106,6 +358,27 @@ dev.off()
 
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #SST standard deviation
 ```{r}

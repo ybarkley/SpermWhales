@@ -40,27 +40,24 @@ library(rerddap)
 # 1. load detection dataset
 ```{r message=F}
 #Load output from 1_TidySpermWhale code
-sw <- read.csv(here::here('output', 'SpermiesALL_20200501.csv'))
+sw <- read_csv(here::here('output', 'SpermiesFinal_20200525.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
 
-sw.loc <- filter(sw, sw$loc==1)
-sw.unlocvis <- filter(sw, sw$loc==0)
 
-#need 0-360 longitude for some datasets
-sw.loc$lon2 = ifelse(sw.loc$lon <1, sw.loc$lon + 360, sw.loc$lon) 
-sw.unlocvis$lon2 = ifelse(sw.unlocvis$lon_trk <1, sw.unlocvis$lon_trk + 360, sw.unlocvis$lon_trk)
-sw <- bind_rows(sw.loc, sw.unlocvis)
-
-#set up for locaation estimates from localized data
-lon = sw.loc$lon
-lat=sw.loc$lat
-dates=sw.loc$UTC
+#NOW all types of encounters can have env data extracted simultaneously.
+#set up for location estimates from localized data
+lon = sw$lon  #xcoord
+# lon = lon[!is.na(lon)]
+lat=sw$lat    #ycoord
+# lat = lat[!is.na(lat)]
+dates=sw$UTC  #tcoord
+# dates = dates[!is.na(dates)]
 
 
-#set up for trackline locations
-lon = sw.unlocvis$lon_trk
-lat=sw.unlocvis$lat_trk
-dates=sw.unlocvis$UTC
+# #set up for trackline locations
+# lon = sw.unlocvis$lon_trk
+# lat=sw.unlocvis$lat_trk
+# dates=sw.unlocvis$UTC
 
 ```
 
@@ -76,7 +73,7 @@ dates=sw.unlocvis$UTC
 # https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16T00:00:00Z):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
 
 #Longitude -180 180
-
+ptm<-proc.time()
 sst=rep(NA,4)
 for (i in 1:length(lon)) {
   # dates[i]
@@ -91,6 +88,27 @@ for (i in 1:length(lon)) {
 
 sst=sst[-1,]
 names(sst) = c("date", "matched_lat", "matched_lon", "sstAQm")
+proc.time()-ptm
+
+
+require("rerddap")
+require("rerddapXtracto")
+
+
+ptm<-proc.time()
+# APDRC ERDDAP server
+urlBase = "https://coastwatch.pfeg.noaa.gov/erddap/"
+
+# wave height
+parameter = "sst"
+sstInfo = rerddap::info('erdMH1sstdmday', url = urlBase)
+sst_xt = rxtracto(sstInfo, parameter = parameter, xcoord = lon, ycoord = lat, tcoord = dates, progress_bar = TRUE)
+# sst_xt
+
+proc.time()-ptm
+
+sstxt_output = cbind(sst_xt$`satellite date`, lon, lat, sst_xt$`mean sst`)
+colnames(sstxt_output) = c("date", "lat", "lon", "sst_m")
 
 ```
 
@@ -102,7 +120,7 @@ names(sst) = c("date", "matched_lat", "matched_lon", "sstAQm")
 
 #Monthly 4km Chla. 
 #Long= -180 180
-
+ptm<-proc.time()
 chla_mon=rep(NA,4)
 for (i in 1:length(lon)) {
   # dates[i]
@@ -115,6 +133,25 @@ for (i in 1:length(lon)) {
 }
 chla_mon=chla_mon[-1,]
 names(chla_mon) = c("date", "matched_lat", "matched_lon", "matched_chla_mon")
+proc.time()-ptm
+
+
+ptm<-proc.time()
+# APDRC ERDDAP server
+urlBase = "http://apdrc.soest.hawaii.edu/erddap/"
+
+# wave height
+parameter = "chlor_a"
+chlaInfo = rerddap::info('hawaii_soest_69ee_7d0d_74e6', url = urlBase)
+chla_xt = rxtracto(chlaInfo, parameter = parameter, xcoord = lon, ycoord = lat, tcoord = dates, progress_bar = TRUE)
+# sst_xt
+
+proc.time()-ptm
+
+chlaxt_output = cbind(chla_xt$`satellite date`, chla_xt$`requested lon min`, chla_xt$`requested lat min`, chla_xt$`mean chlor_a`)
+colnames(chlaxt_output) = c("date", "lon", "lat", "chla_m")
+
+
 ```
 
 
@@ -137,8 +174,8 @@ names(wind_ascat2) = c("date", "matched_lat", "matched_lon", "wsp")
 This is a little awkward in that there are 3 different depths that should loop through each depth and saved accordingly. I set it up brute forcefully...
 ```{r}
 #Long= 0 360
-# lon=sw$lon2
-lon=sw.unlocvis$lon2
+lon=sw$lon2
+# lon=sw.unlocvis$lon2
 
 #choose a depth for dep (100, 500, 600)
 dep = 600
@@ -353,7 +390,7 @@ Also uses nc file located at the VERY BOTTOM of the webpage, so far at the botto
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
 # Open a connection to the first file in our list
-ncname = paste0(here('data'), '/', flist[4])
+ncname = paste0(here::here('data'), '/', flist[4])
 
 # TAKE A SLICE OF THE DATA BASED ON LOCATION OF INTEREST ----> hyper_tibble selects the depth variable, z, to orient the locations
 
@@ -440,9 +477,12 @@ SwEnvDataALL <- bind_rows(SwEnvDataLOC, SwEnvData)
 SwEnvData_pred <- dplyr::select(SwEnvDataALL, sstAQ_m:wavepow)
 SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
 SwEnvData_scale <- cbind(dplyr::select(SwEnvDataALL, ID:lon2, loc:grpsize), SwEnvData_scale)
+#includes ALL data scaled
 write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataALL_20200506-scaled.csv'), row.names = F)
 
 write.csv(SwEncDataALL, here::here('output', 'SpermiesWithEnvDataALL_202000506.csv'), row.names = F)
+
+read.csv
 
 ```
 
@@ -468,8 +508,6 @@ temp2 <-sw.bestB$ID[!(sw.bestB$ID %in% sw.bestA$ID)] #A has more rows than B, fi
 #remove the rows in the dataframes with that IDs that don't match
 sw.bestA2 <- sw.bestA[!sw.bestA$ID %in% temp, ]
 sw.bestB2 <- sw.bestB[!sw.bestB$ID %in% temp2, ]
-
-
 
 
 #sst
@@ -505,22 +543,6 @@ plot(sw.bestA2$ssh, sw.bestB2$ssh)
 ```
 
 
-#add in aux data (nmin, nclk, etc.)
-```{r}
-#Add nmin, nclk, and aux data
-require(openxlsx)
-nmintmp <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath_use.xlsx'), sheet=2)
-nmin <- unite(nmintmp, "ID", survey, acid, vid, remove = F)
-
-SwEnvData_tot <- merge(nmin, SwEnvData, by.x='ID', by.y = 'ID')
-SwEnvData_tot <- SwEnvData_tot[, -c(2,8,13,14)]
-SwEnvData_tot <- dplyr::select(SwEnvData_tot, ID, 'survey'=survey.x, 'acid'=acid.x, UTC, everything())
-
-
-
-
-```
-
 
 #Scale and center predictors
 ```{r}
@@ -553,9 +575,11 @@ SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
 
 # SwEnvData_cent <- center_colmeans(SwEnvData_pred)
 # SwEnvData_cent <- cbind(select(SwEnvData_tot, ID:type, pdist), SwEnvData_cent)
+```
 
 
-
+#Plot scaled variables
+```{r}
 #melt data into long format then plot
 SwSome <- select(SwEnvData_scale, ID, sstAQ_m:wavepow)
 

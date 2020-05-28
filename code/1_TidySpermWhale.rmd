@@ -18,6 +18,7 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file()) #allows for
 library(readr)
 library(stringr)
 library(tidyverse)
+library(here) 
 ```
 
 
@@ -29,11 +30,11 @@ Localizations can include one or two peaks, which creates a different number of 
 First, deal with them separately, then combine them.
 ```{r message=F}
 #Load data that includes only localized acoustic encounters and sighted encounters
-sperm.dat <- read_csv('./data/Spermies_LOCandSIGHT.csv') #using it to get ID label and trackline lat/lon
-sperm.datsub <- sperm.dat[,c(3,5:7, 19, 20)]
+sperm.dat <- read_csv('./data/Spermies_LOCandSIGHTnclicks.csv') #using it to get ID label and trackline lat/lon, from SpermiesBath_20200513.xlsx
+sperm.datsub <- sperm.dat[,c(3,5:7, 9:14, 19, 20)] #survey, acid, sid, time, lat, lon, click info, trackline lat/lon
 
-sperm.datsub <- unite(sperm.datsub, "ID", Survey.Number, Acoustic.ID, Sighting.ID, remove=FALSE)
-colnames(sperm.datsub) <- c('ID', 'survey', 'acid', 'sid', 'UTC', 'lat_trk', 'lon_trk')
+sperm.datsub <- unite(sperm.datsub, "ID", Survey.Number, Acoustic.ID, Sighting.ID, remove=FALSE) #makes ID column
+colnames(sperm.datsub)[colnames(sperm.datsub) %in% c("Survey.Number", "Acoustic.ID", "Sighting.ID", "start.time", "Latitude", "Longitude")] <- c('survey', 'acid', 'sid', 'UTC', 'lat_trk', 'lon_trk')
 
 #Find which ones have 1 or 2 peaks
 # fpath = ("C:\\Users\\yvers\\Documents\\CHP 2\\data\\Chp2_Localizations\\csv_results")
@@ -76,7 +77,7 @@ colnames(peak1) <- c('sig', 'dx', 'nmin', 'maxamb',
                      'sid', 'itrk')
 
 #double-check that the length of peak1 matches length nencs
-peak1 <- unite(peak1, "ID", survey, acid, sid, remove = F)
+peak1 <- unite(peak1, "ID", survey, acid, sid)
 
 #add date and time from sperm.dat with MERGE
 peak1 <- merge(peak1, sperm.datsub, by.x='ID', by.y = 'ID')
@@ -86,8 +87,6 @@ peak1 <- merge(peak1, sperm.datsub, by.x='ID', by.y = 'ID')
 # Since YB went back and redid the straight line encounters to get lat/lons for the second peaks, the encounters that truly only had a single peak need to have the columns with the second peak locations dealt with...THEY ARE DEALT WITH line 63
 
 ```
-
-
 
 
 #Localizations with 2 peak
@@ -108,7 +107,7 @@ colnames(peak2) <- c('sig', 'dx', 'nmin', 'maxamb',
                      'zbestA', 'zminA', 'zmaxA', 
                      'ydiffmin', 'ydiffmax', 'zdiffmin', 'zdiffmax', 'survey', 'acid', 'sid', 'itrk')
 
-peak2 <- unite(peak2, "ID", survey, acid, sid, remove = F)
+peak2 <- unite(peak2, "ID", survey, acid, sid)
 
 #add date and time from sperm.dat with MERGE
 peak2 <- merge(peak2, sperm.datsub, by.x='ID', by.y = 'ID')
@@ -116,7 +115,7 @@ peak2 <- merge(peak2, sperm.datsub, by.x='ID', by.y = 'ID')
 
 ```
 
-#Combine Localized Encounters
+#1. Combine Localized Encounters
 ```{r}
 
 pmAll <- bind_rows(peak1, peak2, .id = 'peaks')
@@ -125,28 +124,28 @@ pmAll <- bind_rows(peak1, peak2, .id = 'peaks')
 pmAll2 <- dplyr::select(pmAll, "ID", everything())
 
 #consolidate data in long format
-pmTidy1 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', UTC = 'start.time', lat = 'lat_bestA', lon = 'lon_bestA', itrk = 'itrk', survey = 'survey', pdist = 'ybestA')
+pmTidy1 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', 'UTC', lat = 'lat_bestA', lon = 'lon_bestA', itrk = 'itrk', survey = 'survey', pdist = 'ybestA')
 pmTidy1$type <- 'best'
 pmTidy1$peak <- 'A'
 
-pmTidy2 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', UTC = 'start.time', lat = 'lat_minA', lon = 'lon_minA', itrk = 'itrk', survey = 'survey', pdist = 'yminA')
+pmTidy2 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', 'UTC', lat = 'lat_minA', lon = 'lon_minA', itrk = 'itrk', survey = 'survey', pdist = 'yminA')
 pmTidy2$type <- 'min'
 pmTidy2$peak <- 'A'
 
-pmTidy3 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', UTC = 'start.time', lat = 'lat_maxA', lon = 'lon_maxA', itrk = 'itrk', survey = 'survey', pdist = 'ymaxA')
+pmTidy3 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid','UTC', lat = 'lat_maxA', lon = 'lon_maxA', itrk = 'itrk', survey = 'survey', pdist = 'ymaxA')
 pmTidy3$type <- 'max'
 pmTidy3$peak <- 'A'
 
-pmTidy4 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', UTC = 'start.time', lat = 'lat_bestB', lon = 'lon_bestB', itrk = 'itrk', survey = 'survey', pdist = 'ybestB')
+pmTidy4 <- dplyr::select(pmAll2, 'ID', 'acid', 'sid', 'UTC', lat = 'lat_bestB', lon = 'lon_bestB', itrk = 'itrk', survey = 'survey', pdist = 'ybestB')
 pmTidy4$type <- 'best'
 pmTidy4$peak <- 'B'
 
-pmTidy5 <- dplyr::select(pmAll2, 'ID', 'acid','sid', UTC = 'start.time', lat = 'lat_minB', lon = 'lon_minB', itrk = 'itrk', survey = 'survey', pdist = 'yminB')
+pmTidy5 <- dplyr::select(pmAll2, 'ID', 'acid','sid', 'UTC', lat = 'lat_minB', lon = 'lon_minB', itrk = 'itrk', survey = 'survey', pdist = 'yminB')
 pmTidy4$type <- 'best'
 pmTidy5$type <- 'min'
 pmTidy5$peak <- 'B'
 
-pmTidy6 <- dplyr::select(pmAll2, 'ID','acid', 'sid', 'ID', UTC = 'start.time', lat = 'lat_maxB', lon = 'lon_maxB', itrk = 'itrk', survey = 'survey', pdist = 'ymaxB')
+pmTidy6 <- dplyr::select(pmAll2, 'ID','acid', 'sid', 'ID', 'UTC', lat = 'lat_maxB', lon = 'lon_maxB', itrk = 'itrk', survey = 'survey', pdist = 'ymaxB')
 pmTidy6$type <- 'max'
 pmTidy6$peak <- 'B'
 
@@ -154,7 +153,7 @@ pmTidy <- bind_rows(pmTidy1, pmTidy2, pmTidy3, pmTidy4, pmTidy5, pmTidy6)
 pmTidy <- dplyr::select(pmTidy, 'survey', 'acid', 'sid', 'ID', 'UTC', 'peak', 'itrk', 'type', 'lat' ,'lon', 'pdist')
 
 #removes rows with NAs
-pmTidy <- pmTidy[complete.cases(pmTidy), ]
+# pmTidy <- pmTidy[complete.cases(pmTidy), ]
 
 
 #REMOVE 1303_24, no clicks -> 4/24/20 YB removed it from folder and csv instead
@@ -165,7 +164,7 @@ pmTidy <- filter(pmTidy, ID != '1705_112' | peak !='A')
 #convert pdist to km
 pmTidy$pdist <- round(pmTidy$pdist/1000, 2)
 
-pmTidy <- merge(pmTidy, sperm.datsub[, c("ID", "lat_trk", "lon_trk")], by='ID')
+pmTidy <- merge(pmTidy, sperm.datsub[, c(1, 7:13)], by='ID') #specify which cols to include from sperm.datsub [, c("ID", "lat_trk", "lon_trk")]
 
 #Adding col to indicate if localized for easier filtering
 pmTidy$loc <- 1
@@ -177,12 +176,12 @@ pmTidy$loc <- 1
 
 ```
 
-#Sighted encounters
+#2. Sighted encounters - extract distance and group size
 ```{r}
 #add visual distances to pmTidyv from Spermies_SIGHTdata (subset from Amanda's file)
 sw.vis <- read.csv(here::here('data', 'Spermies_SIGHTdata.csv'))
 
-
+#filter for sightings from sperm.datsub
 # vid <- sperm.dat[,c(3,5:7, 19, 20)]
 vid2 <-filter(sperm.datsub, sperm.datsub$sid < 999)
 vid3 <- unite(vid2, "ID", survey, acid, sid, remove=FALSE)
@@ -202,7 +201,7 @@ pmTidyv2$loc <- 0
 
 ```
 
-#Unlocalized encounters
+#3. Unlocalized encounters
 ```{r}
 sw.unloc <- read.csv(here::here('data', 'Spermies_UNLOCALIZED.csv'))
 sw.unloc2 <- sw.unloc[,c(3,5:7,14,15)]
@@ -213,21 +212,62 @@ pmTidyun$loc <- 0
 
 ```
 
-
+#4. Combine all sperm whale data, localized, sighted, and unlocalized
 ```{r}
 #combine only localized and sighted encounters
 pmTidyLOCandSIGHT <- bind_rows(pmTidy, pmTidyv2)
 #sort columns by survey and acID numbers
 pmTidyLOCandSIGHT <- arrange(pmTidyLOCandSIGHT, survey, acid)
 
-
-
 #combine all encounters
 pmTidyALL <- bind_rows(pmTidy, pmTidyv2, pmTidyun)
+
 pmTidyALL <- arrange(pmTidyALL, survey, acid)
 
+```
 
-write.csv(pmTidyALL,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesALL_20200501.csv', row.names = F)
+#5. Pull in aux data (nmin, nclk, click type, etc.)
+#add in aux data (nmin, nclk, etc.)
+```{r}
+#Add nmin, nclk, and aux data
+require(openxlsx)
+nmin_all <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath_20200525.xlsx'), sheet=3)
+nmin <- unite(nmin_all, "ID", survey, acid, sid, remove = F)
+
+
+pmTidyaux1 <- merge(pmTidyALL,nmin[,c(3,7,10,13,15)], by='ID') #.x='ID', by.y = 'ID')
+pmTidyaux1 <- arrange(pmTidyaux1, survey, acid)
+
+
+#filter for localized and sighted/unlocalized encounters
+sw.loc <- filter(pmTidyaux1, pmTidyaux1$loc==1)
+sw.unlocvis <- filter(pmTidyaux1, pmTidyaux1$loc==0)
+#include trackline lat/lon in the lat/lon column
+sw.unlocvis$lat <- sw.unlocvis$lat_trk
+sw.unlocvis$lon <- sw.unlocvis$lon_trk
+
+
+#need 0-360 longitude for some env datasets. Need to make it for both localized and trackline locations
+sw.loc$lon2 = ifelse(sw.loc$lon <1, sw.loc$lon + 360, sw.loc$lon) 
+sw.loc$lon_trk2 = ifelse(sw.loc$lon_trk <1, sw.loc$lon_trk + 360, sw.loc$lon_trk) 
+
+sw.unlocvis$lon2 = ifelse(sw.unlocvis$lon_trk <1, sw.unlocvis$lon_trk + 360, sw.unlocvis$lon_trk)
+sw.unlocvis$lon_trk2 = ifelse(sw.unlocvis$lon_trk <1, sw.unlocvis$lon_trk + 360, sw.unlocvis$lon_trk)
+
+
+#combine dfs. The 'unlocvis' where loc=0 should have the same values for lat/lon and lat_trk/lon_trk as well as the same values for lon2 and lon_trk2
+pmTidyaux2 <- bind_rows(sw.loc, sw.unlocvis)# 
+
+
+#drop NAs
+pmTidyFinal<- pmTidyaux2 %>% drop_na(lat)
+
+write.csv(pmTidyFinal,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesFinal_20200525.csv', row.names = F)
+```
+
+
+
+
 
 
 
