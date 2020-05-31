@@ -1,0 +1,333 @@
+---
+title: "ExploreDataPlots"
+author: "Yvonne Barkley"
+date: "3/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(reshape2)
+library(geoR)
+library(fields)
+library(sp)
+library(maptools)
+library(rgdal)
+library(classInt)
+library(lattice)
+library(zoo)
+library(ggplot2)
+library(Rmisc)
+library(MuMIn)
+library(matrixStats)
+```
+
+
+#Load data
+
+```{r}
+# dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/'
+SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200527.csv'))
+SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200326-scaled.csv'))
+
+#The simple maps hate when data crosses the dateline, so for now, I'm adjusting everything back to the eastern side of the dateline for visual purposes
+SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvData_map$lon)
+
+#too many click_codes, reduce creaks/regular (ck/r) to 'f' for foraging -> s, f, cd, cds, cdf, fs, cdfs
+SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code, "r|ck", "f")
+SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code2, "ff", "f")
+
+#now filter for just the 'best' location
+SwEnvData_mapb <- filter(SwEnvData_map, type == 'best', peak == 'A')
+
+
+
+```
+
+
+#Plot temps at different depths
+##Get Hawaii map data
+```{r}
+#Get shape files for Hawaii
+us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+hawaii<-subset(us,NAME=="Hawaii")
+hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+```
+
+##Plot temp at 0m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=sstAQ_m), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(8, 17, 15, 18, 12, 19),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp0, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 0 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_SSTMap.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+##Plot temp at 100m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=temp105C), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp100 m, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 100 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(here::here('output', 'SW_T100Map.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+##Plot temp at 0m
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=temp459C), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp500, degC') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 500 m") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_T500Map.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+#bathymetry
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#for temperature at surface
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=bath), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#b04ce5", "#005c8b", "#00f9ff"), name='Bathy, m') + #ff9b00 
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Acoustically Detected Sperm Whales") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_Bathy.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#sea surface height
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape=as.factor(click_code2), color=ssh), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#fcff00", "#005c8b", "#b04ce5"), name='SSH, cm') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("SSH") +
+  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_SSH.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+
+#Correlation Matrix
+```{r}
+##Calculate Pearson's correlation coefficient for all variables. Remove variables -0.70 > r > 0.70.
+#use only the env predictos
+require(corrplot)
+require(PerformanceAnalytics) 
+require(RColorBrewer)
+
+sw_scaled <- SwEnvData_scale[,27:42]
+sw_orig <- SwEnvData[,27:41]
+
+corrplot.mixed(cor(sw_scaled, use='complete.obs'), upper="circle", lower="number", upper.col =brewer.pal(n=8, name="PRGn"), lower.col = brewer.pal(n=8, name="PRGn") )
+tmp <- cor(sw_scaled, use='complete.obs')
+tmp[upper.tri(tmp)] <- 0
+diag(tmp) <- 0
+sw_new <- sw_scaled[,!apply(tmp,2,function(x) any(abs(x) > 0.70))]
+
+#two ways to make corr plot
+corrplot(cor(sw_new, use="complete.obs"),type = 'lower', col=brewer.pal(n=8, name="PRGn")) 
+
+corrplot.mixed(cor(sw_new, use='complete.obs'), upper="circle", lower="number", upper.col =brewer.pal(n=8, name="PRGn"), lower.col = brewer.pal(n=8, name="PRGn") )
+
+# chart.Correlation(sw_new, histogram=TRUE, pch=19)
+
+sw_cor <- cbind(dplyr::select(SwEnvData, ID:lon_trk2), sw_new)
+
+write.csv(sw_cor, here::here('output', 'SpermiesUncorrelated_20200527.csv'), row.names = F)
+
+
+
+```
+
+
+
+#Kruskal-Wallis Test for nonparametric comparisons
+The null hypothesis = populations are identical. If p<0.05, then populations are nonidentical/different.
+1. Test if there's a significant difference between peaks A, B, and the trackline location for localized encs.
+2. Also test if there's a difference between the best, min, max of each peak.
+```{r}
+#Load tidy sperm whale data and filter for localized encounters only
+SwEnvDataLocTrk <- read_csv(here::here('output', 'SpermiesWithEnvDataLocTrk_20200527-scaled.csv'))
+SwEnvData <- read_csv(here::here('output', 'SpermiesWithEnvData_20200527.csv'))
+
+#1.
+#for trackline location data
+swtrk <- select(SwEnvDataLocTrk, ID, lon_trk, lat_trk, sstAQ_m:eke)
+swtrk_sub <- distinct(swtrk, ID, .keep_all = TRUE)
+colnames(swtrk_sub)[colnames(swtrk_sub) %in% c('lon_trk', 'lat_trk')] <- c('lon', 'lat')
+
+swtrklong <- swtrk_sub %>% pivot_longer(-(ID:lat_trk),names_to = 'variable', values_to = 'values')
+swtrklong$peak <- 'trk'
+swtrk_sub$peak <- 'trk'
+swtrk_sub$d2smt_km <- 'NA'
+swtrk_sub <- select(swtrk_sub, ID:d2land_km, d2smt_km, everything()) #reorder columns
+
+
+sw.bestA <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'A')
+swAsub <- select(sw.bestA, ID, lon, lat, sstAQ_m:eke)
+sw.bestAlong <- swAsub %>% pivot_longer(-(ID:lat),names_to = 'variable', values_to = 'values')
+sw.bestAlong$peak <- 'A'
+swAsub$peak <- 'A'
+
+sw.bestB <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'B')
+swBsub <- select(sw.bestB, ID, lon, lat, sstAQ_m:eke)
+sw.bestBlong <- swBsub %>% pivot_longer(-(ID:lat),names_to = 'variable', values_to = 'values')
+sw.bestBlong$peak <- 'B'
+swBsub$peak <- 'B'
+
+# swanova <- rbind(swtrklong, sw.bestAlong, sw.bestBlong)
+######Combine trackline and estimated locations for localized whales 
+
+swKW <- rbind(swtrk_sub, swAsub, swBsub)
+swKW$peak <- as.factor(swKW$peak)
+swKW <- swKW[, -c(2,3,5:6)]
+
+# https://stat-methods.com/home/kruskal-wallis-r/
+library("ggplot2")
+library("qqplotr")
+library("dplyr")
+library("DescTools")
+library("FSA")
+library("PMCMRplus")
+
+swKW %>% filter(peak != 'trk') %>% mutate_at(vars(d2smt_km), as.numeric) %>% select(peak, d2smt_km) %>% group_by(peak) %>% 
+  dplyr::summarise(n=n(), 
+            mean=mean(d2smt_km, na.rm = TRUE), 
+            sd=sd(d2smt_km, na.rm = TRUE),
+            stderr=sd/sqrt(n),
+            LCL = mean - qt(1 - (0.05 / 2), n - 1) * stderr,
+            UCL = mean + qt(1 - (0.05 / 2), n - 1) * stderr,
+            median=median(d2smt_km, na.rm = TRUE),
+            min=min(d2smt_km, na.rm = TRUE), 
+            max=max(d2smt_km, na.rm = TRUE),
+            IQR=IQR(d2smt_km, na.rm = TRUE),
+            LCLmed = MedianCI(d2smt_km, na.rm=TRUE)[2],
+            UCLmed = MedianCI(d2smt_km, na.rm=TRUE)[3])
+```
+
+```{r}
+#Test each group for normality. A p-value < 0.05 would indicate that we should reject the assumption of normality (so it's not normally distributed if p<0.05. 
+shaptest <- lapply(swKW[,c(4,7:13,15:19)], shapiro.test)
+shapres <- sapply(shaptest, `[`, c("statistic", "p.value"))
+``` 
+The wind variable, wind_ms, is the only normally distributed variable where p.value > 0.05.
+
+
+```{r}
+#Perform QQ plots by group
+ggplot(data = swKW, mapping = aes(sample = par_m, color = peak, fill = peak)) +
+  # stat_qq_band()#(alpha=0.5, conf=0.95, bandType = "pointwise") +
+  stat_qq_line() +
+  stat_qq_point(col="black") +
+  facet_wrap(~ peak, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw() 
+```
+
+```{r}
+#Perform the Kruskal-Wallis test
+kwresults = list()
+kwdf = NULL
+for (i in names(swKW[,c(4,7:13,16:19)])){ #skips d2smt for now
+  
+  kwresults[[i]] <- kruskal.test(formula(paste(i, "~peak")), data = swKW)
+  kwt <- cbind(kwresults[[i]]$data.name, kwresults[[i]]$p.value)
+  kwdf <- as.data.frame(rbind(kwdf, kwt))
+}
+colnames(kwdf) <- c('test', 'pval')
+
+#for single variable     
+swKW2 <- swKW %>% filter(peak != 'trk') %>% droplevels() %>% mutate_at(vars(d2smt_km), as.numeric)
+kwsmt <- kruskal.test(d2smt_km ~ peak, data=swKW2)
+kwdf <- rbind(kwdf, cbind(`test`= kwsmt$data.name, `pval`= kwsmt$p.value))
+write.csv(kwdf, here::here('output', 'Spermies_KruskalWallis_BtwnPeaks.csv'), row.names = F)
+```
+No non-normal variable is significantly different between peaks or trackline locations 
+
+```{r}
+#test wind variable using anova
+
+sw_wind <- aov(wind_ms~peak, data=swKW)
+anova(sw_wind)
+
+```
+The normally distributed wind variable also does not significantly differ between peaks and trackline locations.
+
+
+
+
+
+
+
+
+

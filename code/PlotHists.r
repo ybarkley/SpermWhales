@@ -88,7 +88,7 @@ plot(distBest0_dtfun, main = "Best Distances (w/ 1641)")
 
 ########## Error Distribution #############
 
-# Load data from matlab Step 5
+# Load data from matlab Step 5. This is from Len's suggestion of modeling the error in loc estimates.
 
 SwDists <- read.csv(here('data', 'SpermieDistances_distributionALL.csv'), header = FALSE)
 # SwDists <-SwDists[-c(56,58),]
