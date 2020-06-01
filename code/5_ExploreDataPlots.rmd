@@ -30,9 +30,9 @@ library(matrixStats)
 #Load data
 
 ```{r}
-# dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/'
-SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200527.csv'))
-SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200326-scaled.csv'))
+dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures/'
+SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200531.csv'))
+SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200527-scaled.csv'))
 
 #The simple maps hate when data crosses the dateline, so for now, I'm adjusting everything back to the eastern side of the dateline for visual purposes
 SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvData_map$lon)
@@ -41,22 +41,59 @@ SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvDa
 SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code, "r|ck", "f")
 SwEnvData_map$click_code2 <- str_replace_all(SwEnvData_map$click_code2, "ff", "f")
 
-#now filter for just the 'best' location
-SwEnvData_mapb <- filter(SwEnvData_map, type == 'best', peak == 'A')
+#work on this
+SwEnvData_map$demog <- ifelse(SwEnvData_map$click_code2 == 's', 's', 'g')
+
+
+
+#now filter for just the 'best' location of localized and the track locations for vis and unloc
+SwEnvData_mapb1 <- filter(SwEnvData_map, loc == 1, type == 'best', peak == 'A')
+SwEnvData_mapb2 <- filter(SwEnvData_map, loc == 0, sid == 999)
+SwEnvData_mapb3 <- filter(SwEnvData_map, loc ==0, sid < 999)
+SwEnvData_mapb1$enctype <- 'loc'
+SwEnvData_mapb2$enctype <- 'un'
+SwEnvData_mapb3$enctype <- 'vis'
+
+SwEnvData_mapb = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2,SwEnvData_mapb3))
 
 
 
 ```
 
 
-#Plot temps at different depths
-##Get Hawaii map data
+#Get Hawaii map data
 ```{r}
 #Get shape files for Hawaii
-us<-readShapePoly("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+us<-readOGR("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
 hawaii<-subset(us,NAME=="Hawaii")
 hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
 ```
+
+
+
+#Plot all encounters
+Shape by enc type (loc, unloc, vis), color by year
+```{r}
+
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=as.factor(survey), shape=enctype), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(8, 17, 15),name='Enc Type', labels=c("Ac_Localized", "Ac_Unlocalized","Sighting")) +
+ scale_color_manual(values = c("#d64161", "#ff7b25", "#feb236", "#86af49","#92a8d1", "#6b5b95"), name='Survey') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("All Sperm Whale Encounters") +
+  theme(legend.position="bottom", legend.box='horizontal',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+
+ggsave(paste0(dir, 'SW_AllEncMap.png'), width=8, height = 6, units='in', dpi=300)
+
+```
+
+
 
 ##Plot temp at 0m
 ```{r}
@@ -65,18 +102,19 @@ long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
 
 #for temperature at surface
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
-  geom_point(aes(shape=as.factor(click_code2), color=sstAQ_m), size=3) +
+  geom_point(aes(color=sstAQ_m), size=3) +
   theme_bw() +
-  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
   scale_x_continuous(name='Longitude', breaks=round(long,1)) +
-   scale_shape_manual(values=c(8, 17, 15, 18, 12, 19),
-                     name='click types ',
-                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
- scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp0, degC') +
+   # scale_shape_manual(values=c(8, 18),name='Localized?') +
+                      # values=c(8, 17, 15, 18, 12, 19),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='SST, degC') +
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
-  ggtitle("Temps at 0 m") +
-  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  ggtitle("Sea Surface Temperature for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(paste0(dir, 'SW_SSTMap.png'), width=8, height = 6, units='in', dpi=300)
@@ -100,34 +138,34 @@ ggplot(SwEnvData_mapb, aes(lon, lat)) +
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
   ggtitle("Temps at 100 m") +
-  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(here::here('output', 'SW_T100Map.png'), width=8, height = 6, units='in', dpi=300)
 ```
 
-##Plot temp at 0m
+#Plot temp at 600m
 ```{r}
 long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
 
 
 #for temperature at surface
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
-  geom_point(aes(shape=as.factor(click_code2), color=temp459C), size=3) +
+  geom_point(aes(color=temp600C), size=3) +
   theme_bw() +
   scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
   scale_x_continuous(name='Longitude', breaks=round(long,1)) +
-   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
-                     name='click types ',
-                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
- scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp500, degC') +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Temp at 600, degC') +
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
-  ggtitle("Temps at 500 m") +
-  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  ggtitle("Temps at 600 m for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
-ggsave(paste0(dir, 'SW_T500Map.png'), width=8, height = 6, units='in', dpi=300)
+ggsave(paste0(dir, 'SW_T600Map.png'), width=8, height = 6, units='in', dpi=300)
 ```
 
 #bathymetry
@@ -135,46 +173,172 @@ ggsave(paste0(dir, 'SW_T500Map.png'), width=8, height = 6, units='in', dpi=300)
 long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
 
 
-#for temperature at surface
+#for bathy
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
-  geom_point(aes(shape=as.factor(click_code2), color=bath), size=3) +
+  geom_point(aes(color=bath), size=3) +
   theme_bw() +
   scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
   scale_x_continuous(name='Longitude', breaks=round(long,1)) +
-   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
-                     name='click types ',
-                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
- scale_color_gradientn(colors = c("#b04ce5", "#005c8b", "#00f9ff"), name='Bathy, m') + #ff9b00 
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#005c8b", "#b04ce5", "#00f9ff"), name='Bathy, m') + #ff9b00 
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
-  ggtitle("Acoustically Detected Sperm Whales") +
-  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  ggtitle("Bathymetry for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(paste0(dir, 'SW_Bathy.png'), width=8, height = 6, units='in', dpi=300)
 ```
 
+#SSH plot
 ```{r}
 long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
 
 
 #sea surface height
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
-  geom_point(aes(shape=as.factor(click_code2), color=ssh), size=3) +
+  geom_point(aes(color=ssh), size=3) +
   theme_bw() +
   scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
   scale_x_continuous(name='Longitude', breaks=round(long,1)) +
-   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
-                     name='click types ',
-                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
- scale_color_gradientn(colors = c("#fcff00", "#005c8b", "#b04ce5"), name='SSH, cm') +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#8ad334", "#ff0000"), name='SSH (m)') + #c("#fcff00", "#005c8b", "#b04ce5")
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
-  ggtitle("SSH") +
-  theme(legend.position="bottom", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  ggtitle("SSH for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(paste0(dir, 'SW_SSH.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+#SSHsd plot
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#sea surface height
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=sshsd), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#8ad334", "#ff0000"), name='SSH_SD (m)') + #c("#fcff00", "#005c8b", "#b04ce5")
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Standard Deviation of SSH for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_SSHsd.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+#EKE plot
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#EKE
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=eke), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#8ad334", "#ff0000"), name='EKE') + #c("#fcff00", "#005c8b", "#b04ce5")
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Eddy Kinetic Energy for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_EKE.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+
+#ChlA plot
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#chla
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=chla_m), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#00AFBB", "#E7B800", "#FC4E07"), name='Chl a') + #c("#fcff00", "#005c8b", "#b04ce5")
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Chlorophyll A for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_Chla.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+
+#wave power plot
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#chla
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=wavepow), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(21, 17, 15, 19, 10, 3),
+   #                   name='click types ',
+   #                   labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow")) +
+ scale_color_gradientn(colors = c("#8ad334", "#ff0000"), name='Wave Power') + #c("#fcff00", "#005c8b", "#b04ce5")
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Wave Power for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_WavePow.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+
+
+#click code plotted
+Separate these into separate plots per click type
+```{r}
+long = seq(min(SwEnvData_mapb$lon), max(SwEnvData_mapb$lon), 5)
+
+
+#sea surface height
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(shape =click_code2), size=3, color = 'blue') +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(21, 17, 15, 19, 10, 3, 20),
+                     name='click types ',
+                     labels=c("coda/feed", "coda/feed/slow","coda/slow","feed", "feed/slow", "slow", "coda")) +
+ # scale_color_gradientn(colors = c("#fcff00", "#005c8b", "#b04ce5"), name='Click Type, cm') +
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Click Types for All Sperm Whales") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SW_ClickType.png'), width=8, height = 6, units='in', dpi=300)
 ```
 
 
@@ -211,8 +375,8 @@ write.csv(sw_cor, here::here('output', 'SpermiesUncorrelated_20200527.csv'), row
 ```
 
 
-
 #Kruskal-Wallis Test for nonparametric comparisons
+don't use, apparently this is the wrong test 
 The null hypothesis = populations are identical. If p<0.05, then populations are nonidentical/different.
 1. Test if there's a significant difference between peaks A, B, and the trackline location for localized encs.
 2. Also test if there's a difference between the best, min, max of each peak.
@@ -310,7 +474,6 @@ colnames(kwdf) <- c('test', 'pval')
 swKW2 <- swKW %>% filter(peak != 'trk') %>% droplevels() %>% mutate_at(vars(d2smt_km), as.numeric)
 kwsmt <- kruskal.test(d2smt_km ~ peak, data=swKW2)
 kwdf <- rbind(kwdf, cbind(`test`= kwsmt$data.name, `pval`= kwsmt$p.value))
-write.csv(kwdf, here::here('output', 'Spermies_KruskalWallis_BtwnPeaks.csv'), row.names = F)
 ```
 No non-normal variable is significantly different between peaks or trackline locations 
 
@@ -318,10 +481,19 @@ No non-normal variable is significantly different between peaks or trackline loc
 #test wind variable using anova
 
 sw_wind <- aov(wind_ms~peak, data=swKW)
-anova(sw_wind)
+aov <-anova(sw_wind)
+
+windnam <- paste('wind_ms', 'by', 'peak')
+windnam <- as.data.frame(cbind(`test` = windnam, `pval`=aov$`Pr(>F)`[1]))
+kwdf <- rbind(kwdf, windnam)
+
+write.csv(kwdf, here::here('output', 'Spermies_KruskalWallis_BtwnPeaks.csv'), row.names = F)
 
 ```
 The normally distributed wind variable also does not significantly differ between peaks and trackline locations.
+
+
+
 
 
 

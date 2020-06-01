@@ -1,0 +1,78 @@
+---
+title: "Wilcoxon Test between Env Data for Trackline and Localized Whales"
+author: "Yvonne Barkley"
+date: "5/31/2020"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r message=F}
+library(lubridate)
+library(tidyverse)
+library(reshape2)
+library(dplyr)
+library(ggplot2)
+library(here) #helps with stupid root dir and accessing subfolders, it's awesome.
+library(rstatix)
+```
+#Wilcoxon Test
+Testing whether there's a difference between localized env data or the trackline locations
+https://www.datanovia.com/en/lessons/wilcoxon-test-in-r/#signed-rank-test-on-paired-samples
+```{r}
+#Take the mean of the env data for peaks A & B for each variable
+swenvloc <- filter(SwEnvData, loc == 1)
+swenvloc <- dplyr::select(swenvloc, sstAQ_m:eke)
+swpeakmean <- as.data.frame(colMeans(swenvloc))
+swenvloc2 <- dplyr::select(swenvloc, ID, sstAQ_m:eke)
+swpeakmean2 <- aggregate(.~ID, swenvloc2, mean)
+
+#set up long format data for each variable, grouped by type of location
+swsst <- select(SwEnvDataLocTrk, ID,  `trkSST` = sstAQ_m)
+swsst_sub <- distinct(swsst, ID, .keep_all = TRUE)
+# colnames(swtrk_sub)[colnames(swtrk_sub) %in% c('sstAQ_m')] <- c('trkSST')
+swsst_sub$peakSST <- swpeakmean2$sstAQ_m
+swSST.long <- swsst_sub %>% pivot_longer(-(ID),names_to = 'group', values_to = 'sst')
+```
+
+Run summary stats on variable
+```{r}
+swSST.long %>% 
+  group_by(group) %>%
+  dplyr::summarise(n=n(), 
+            mean=mean(sst, na.rm = TRUE), 
+            sd=sd(sst, na.rm = TRUE),
+            stderr=sd/sqrt(n),
+            LCL = mean - qt(1 - (0.05 / 2), n - 1) * stderr,
+            UCL = mean + qt(1 - (0.05 / 2), n - 1) * stderr,
+            median=median(sst, na.rm = TRUE),
+            min=min(sst, na.rm = TRUE), 
+            max=max(sst, na.rm = TRUE),
+            IQR=IQR(sst, na.rm = TRUE),
+            LCLmed = MedianCI(sst, na.rm=TRUE)[2],
+            UCLmed = MedianCI(sst, na.rm=TRUE)[3])
+#visualize
+bxp <- ggpaired(swSST.long, x = "group", y = "sst", 
+         order = c("trkSST", "peakSST"),
+         ylab = "SST", xlab = "Groups")
+
+# The test assumes that differences between paired samples should be distributed symmetrically around the median.
+# Compute the differences between pairs and create histograms:
+
+swsst2 <- swsst_sub %>% mutate(differences = peakSST - trkSST)
+gghistogram(swsst2, x = "differences", y = "..density..", 
+            fill = "steelblue",bins = 5, add_density = TRUE)
+#If differences look symmetrical around the median, then use Wilcoxon signed-rank test
+
+#Question : Is there any significant changes in the weights of mice after treatment?
+stat.test <- swSST.long  %>%
+  wilcox_test(sst ~ group, paired = TRUE) %>%
+  add_significance()
+stat.test
+
+#effect size (if there is one?)
+swSST.long  %>%
+  rstatix::wilcox_effsize(sst ~ group, paired = TRUE)
+#small effect size detected, r = 0.006
+
+```

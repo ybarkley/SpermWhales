@@ -40,7 +40,7 @@ library(rerddap)
 # 1. load detection dataset
 ```{r message=F}
 #Load output from 1_TidySpermWhale code
-sw <- read_csv(here::here('output', 'SpermiesFinal_20200525.csv'))
+sw <- read_csv(here::here('output', 'SpermiesFinal_20200531.csv'))
 sw$UTC = mdy_hms(sw$UTC, truncated = 2)
 
 
@@ -515,14 +515,27 @@ SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm,
 # SwEnvsub2 <- cbind(SwEnvsub, bathdat, slp_asp_match$slope, slp_asp_match$aspect, dist2land$dist2land)
 # SwEnvsub2 <- SwEnvsub2[, c(1:32, 38:41, 33:37)]
 # colnames(SwEnvsub2)[colnames(SwEnvsub2) %in% c('slp_asp_match$slope', 'slp_asp_match$aspect', 'dist2land$dist2land')] <- c('slp_deg', 'asp_deg', 'd2land_km')
-SwEnvDataf <- filter(SwEnvData, itrk == 1)
 
-write.csv(SwEnvData, here::here('output', 'SpermiesWithEnvData_20200527.csv'), row.names = F)
-
-
+SwEnvData<-filter(SwEnvData, ID != '1705_112_999' | peak !='A')
+write.csv(SwEnvData, here::here('output', 'SpermiesWithEnvData_20200531.csv'), row.names = F)
 
 
-write.csv(SwEnvDataLocTrk, here::here('output', 'SpermiesWithEnvDataLocTrk_20200527.csv'), row.names = F)
+#5/31/20 had to add in the click data, got dropped somewhere before this
+# SwEnvData$peak <- sw_new$peak
+# SwEnvData$itrk <- sw_new$itrk
+# SwEnvData$nclk <- sw_new$nclk
+# SwEnvData$minutes <- sw_new$minutes
+# SwEnvData$seconds <- sw_new$seconds
+# SwEnvData$cpm <- sw_new$cpm
+# SwEnvData$cps <- sw_new$cps
+
+
+smt2 <- read.csv(here::here('data', 'Spermies_localized_Seamounts4TrackLocs.csv'))
+smt2 <- smt2$d2_seam_m/1000
+SwEnvDataLocTrk$d2smt_km <- smt2
+SwEnvDataLocTrk <- SwEnvDataLocTrk[, c(1:36, 42, 37:41)]
+
+write.csv(SwEnvDataLocTrk, here::here('output', 'SpermiesWithEnvDataLocTrk_20200531.csv'), row.names = F)
 ```
 
 
@@ -551,9 +564,9 @@ write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataLocTrk_20200
 ```{r}
 
 #filter for localized data and predictors only
-SwEnvDataLocA <- filter(SwEnvData_scale, SwEnvData_scale$loc ==1 & SwEnvData_scale$peak == 'A') #peak A
+SwEnvDataLocA <- filter(SwEnvData_scale, loc ==1 & peak == 'A') #peak A
 SwEnvDataLocB <- filter(SwEnvData_scale, loc ==1 & peak == 'B') #peak B
-SwEnvDataLocT <- filter(SwEnvData_scale, loc ==1) #trackline
+SwEnvDataLocT <- filter(SwEnvData_scale, loc ==0) #trackline
 
 #for trackline location data
 swtrk <- select(SwEnvDataLocTrk, ID, lon_trk, lat_trk, sstAQ_m:eke)
@@ -591,6 +604,7 @@ plot(sw.bestA2$chla_m, sw.bestB$chla_m)
 plot(sw.bestA2$par_m, sw.bestB$par_m)
 plot(sw.bestA2$wind_ms, sw.bestB$wind_ms)
 
+cor(sw.bestA2$sstAQ_m, sw.bestB$sstAQ_m)
 #correlated, don't care about them
 # plot(sw.bestA2$temp100C, sw.bestB$temp100C)
 # plot(sw.bestA2$temp500C, sw.bestB$temp500C)

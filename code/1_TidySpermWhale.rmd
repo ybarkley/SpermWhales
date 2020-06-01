@@ -187,18 +187,19 @@ vid2 <-filter(sperm.datsub, sperm.datsub$sid < 999)
 vid3 <- unite(vid2, "ID", survey, acid, sid, remove=FALSE)
 pmTidyv <- dplyr::select(vid3, ID, everything())
 
-
+#NO NEED, group size in sperm.dat
 #make new ID column with survey and sid for matching data purposes
 id2 <- unite(pmTidyv, "ID2", survey, sid, remove=FALSE)
 id2v <- unite(sw.vis, "ID2", CruzNo, SightNo)
 
 
-#merge/combine distances and group sizes from sighting data with times and lat/lons from acoustic data
-pmTidyv2 <- merge(id2, id2v[, c("ID2", "distance", "SP046")], by='ID2')
-pmTidyv2 <- rename(pmTidyv2, pdist = distance, grpsize = SP046)
+#merge/combine distances (not group sizes) from sighting data with times and lat/lons from acoustic data
+pmTidyv2 <- merge(id2, id2v[, c("ID2", "distance")], by='ID2')
+pmTidyv2 <- dplyr::rename(pmTidyv2, pdist = distance)
 pmTidyv2 <- pmTidyv2[,-1]
 pmTidyv2$loc <- 0
-
+pmTidyv2$peak <-'trk'
+pmTidyv2$itrk <-1
 ```
 
 #3. Unlocalized encounters
@@ -209,7 +210,8 @@ sw.unloc3 <- unite(sw.unloc2, "ID", Survey.Number, Acoustic.ID, Sighting.ID)
 pmTidyun <- cbind(sw.unloc2[1:3], sw.unloc3)
 colnames(pmTidyun) <- c('survey', 'acid', 'sid', 'ID', 'UTC', 'lat_trk', 'lon_trk')
 pmTidyun$loc <- 0
-
+pmTidyun$peak <-'trk'
+pmTidyun$itrk <-1
 ```
 
 #4. Combine all sperm whale data, localized, sighted, and unlocalized
@@ -231,8 +233,11 @@ pmTidyALL <- arrange(pmTidyALL, survey, acid)
 ```{r}
 #Add nmin, nclk, and aux data
 require(openxlsx)
-nmin_all <- read.xlsx(paste0(here('data'), '/', 'SpermiesBath_20200525.xlsx'), sheet=3)
+nmin_all <- read.xlsx(paste0(here::here('data'), '/', 'SpermiesBath_20200525.xlsx'), sheet=3)
 nmin <- unite(nmin_all, "ID", survey, acid, sid, remove = F)
+
+# nclicks <- read.xlsx(paste0(here::here('data'), '/', 'SpermiesBath_20200525.xlsx'), sheet=2) #already loaded in spermdat
+# nclicks <- unite(nclicks, "ID", survey, acid, sid, remove = F)
 
 
 pmTidyaux1 <- merge(pmTidyALL,nmin[,c(3,7,10,13,15)], by='ID') #.x='ID', by.y = 'ID')
@@ -245,6 +250,7 @@ sw.unlocvis <- filter(pmTidyaux1, pmTidyaux1$loc==0)
 #include trackline lat/lon in the lat/lon column
 sw.unlocvis$lat <- sw.unlocvis$lat_trk
 sw.unlocvis$lon <- sw.unlocvis$lon_trk
+
 
 
 #need 0-360 longitude for some env datasets. Need to make it for both localized and trackline locations
@@ -262,7 +268,7 @@ pmTidyaux2 <- bind_rows(sw.loc, sw.unlocvis)#
 #drop NAs
 pmTidyFinal<- pmTidyaux2 %>% drop_na(lat)
 
-write.csv(pmTidyFinal,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesFinal_20200525.csv', row.names = F)
+write.csv(pmTidyFinal,  'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/SpermiesFinal_20200531.csv', row.names = F)
 ```
 
 
