@@ -17,15 +17,16 @@ library(here) #helps with stupid root dir and accessing subfolders, it's awesome
 library(rstatix)
 ```
 #Wilcoxon Test
-Testing whether there's a difference between localized env data or the trackline locations
+Testing whether there's a difference in env data between the localized locations and the trackline locations
 https://www.datanovia.com/en/lessons/wilcoxon-test-in-r/#signed-rank-test-on-paired-samples
 ```{r}
-#Take the mean of the env data for peaks A & B for each variable
+#Take the mean of the env data for peaks A & B for each variable since 1:1 plots showed them to be similar
 swenvloc <- filter(SwEnvData, loc == 1)
 swenvloc <- dplyr::select(swenvloc, sstAQ_m:eke)
 swpeakmean <- as.data.frame(colMeans(swenvloc))
 swenvloc2 <- dplyr::select(swenvloc, ID, sstAQ_m:eke)
 swpeakmean2 <- aggregate(.~ID, swenvloc2, mean)
+swpeakmean2$group <- 1 #peak
 
 #set up long format data for each variable, grouped by type of location
 swsst <- select(SwEnvDataLocTrk, ID,  `trkSST` = sstAQ_m)
@@ -33,6 +34,20 @@ swsst_sub <- distinct(swsst, ID, .keep_all = TRUE)
 # colnames(swtrk_sub)[colnames(swtrk_sub) %in% c('sstAQ_m')] <- c('trkSST')
 swsst_sub$peakSST <- swpeakmean2$sstAQ_m
 swSST.long <- swsst_sub %>% pivot_longer(-(ID),names_to = 'group', values_to = 'sst')
+
+
+swtest <- select(SwEnvDataLocTrk, ID, sstAQ_m:eke)
+swtest_sub <- distinct(swtest, ID, .keep_all = TRUE)
+swtest_sub$group <- 2 #track
+swtest_sub$peakSST <- swpeakmean2$sstAQ_m
+swtest_sub$peakt600 <- swpeakmean2$temp600C
+swtest.long <- swtest_sub %>% pivot_longer(-(ID),names_to = 'group', values_to = 'sst')
+
+swtestagain <- rbind(swpeakmean2, swtest_sub)
+wilcoxn <- lapply(swtestagain[,c("sstAQ_m", "temp600C","chla_m","par_m","bath","slp_deg","asp_deg", "d2land_km", "d2smt_km",  "wind_ms","wavepow","ssh","sshsd","eke","group")], function(x) wilcox.test(x ~ swtestagain$group))
+
+
+
 ```
 
 Run summary stats on variable

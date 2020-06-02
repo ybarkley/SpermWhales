@@ -1,0 +1,13 @@
+---
+title: "KS Tests "
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+Compare random distribution of data with sperm whale data using Kolmogorov-Smirnov Tests.
+
+```{r}
+#sample random rows from data frame
+df[sample(nrow(df), 3), ]
+```
+

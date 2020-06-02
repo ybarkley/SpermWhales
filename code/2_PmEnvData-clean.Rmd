@@ -633,26 +633,28 @@ plot(sw.bestA2$eke, sw.bestB$eke)
 # plot(sw.bestA2$temp500C, sw.bestB$temp500C)
 
 #Histograms -> includes all 
+require(Cairo)
+Cairo(paste0(dirfig, "Histograms1.png"), width = 1000, height = 600, dpi=300)
 par(mfrow=c(3, 2))
-hist(SwEnvData_pred$sstAQ_m, main = expression(paste("SST ("^"o", "C",")")))
-hist(SwEnvData_pred$temp600C, main = 'Temp @ 600m')
-hist(SwEnvData_pred$chla_m, main = 'Chlorophyll a')
-hist(SwEnvData_pred$par_m, main = expression(paste("PAR (E m"^"-2", "day"^"-1",")")))
-hist(SwEnvData_pred$wind_ms, main = 'Wind Speed (m/s)')
-
-hist(SwEnvData_pred$bath, main="Bathymetric Depth (m)")
-hist(SwEnvData_pred$slp_deg,  main = 'Slope (deg)')
-hist(SwEnvData_pred$asp_deg,  main = 'Aspect (deg)')
-hist(SwEnvData_pred$d2land_km, main = 'Dist to Land (km)')
-hist(SwEnvData_pred$d2smt_km, main = 'Dist to Seamount (km)')
-
-
-par(mfrow=c(2, 2))
-hist(SwEnvData_pred$wavepow, main = 'Wave Power (kW/m)')
-hist(SwEnvData_pred$ssh, main = 'SSH')
-hist(SwEnvData_pred$sshsd, main = 'SSHsd')
-hist(SwEnvData_pred$eke, main = 'EKE')
-
+hist(SwEnvData_pred$sstAQ_m, xlab = expression(paste("SST ("^"o", "C",")")), main=NULL)
+hist(SwEnvData_pred$temp600C, xlab = expression(paste("Temp at 600 m ("^"o", "C",")")), main=NULL)
+hist(SwEnvData_pred$chla_m, xlab = expression(paste("Chl a (mg", "/m"^"3",")")), main=NULL)
+hist(SwEnvData_pred$par_m, xlab = expression(paste("PAR (E m"^"-2", "day"^"-1",")")), main=NULL)
+hist(SwEnvData_pred$wind_ms, xlab = 'Wind Speed (m/s)', main=NULL)
+dev.off()
+png(paste0(dirfig, "Histograms2.png"), width = 1000, height = 600)
+hist(SwEnvData_pred$bath, xlab="Bathymetric Depth (m)", main=NULL)
+hist(SwEnvData_pred$slp_deg,  xlab = 'Slope (deg)', main=NULL)
+hist(SwEnvData_pred$asp_deg,  xlab = 'Aspect (deg)', main=NULL)
+hist(SwEnvData_pred$d2land_km, xlab = 'Dist to Land (km)', main=NULL)
+hist(SwEnvData_pred$d2smt_km, xlab = 'Dist to Seamount (km)', main=NULL)
+dev.off()
+png(paste0(dirfig, "Histograms3.png"), width = 1000, height = 600)
+par(mfrow=c(3, 2))
+hist(SwEnvData_pred$wavepow, xlab = 'Wave Power (kW/m)', main=NULL)
+hist(SwEnvData_pred$ssh, xlab = 'SSH', main=NULL)
+hist(SwEnvData_pred$sshsd, xlab = 'SSHsd', main=NULL)
+hist(SwEnvData_pred$eke, xlab = expression(paste("EKE (m"^"2", "/s"^"2",")")), main=NULL)
 
 
 ```
