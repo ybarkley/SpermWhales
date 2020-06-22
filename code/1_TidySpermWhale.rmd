@@ -158,7 +158,7 @@ pmTidy <- dplyr::select(pmTidy, 'survey', 'acid', 'sid', 'ID', 'UTC', 'peak', 'i
 
 #REMOVE 1303_24, no clicks -> 4/24/20 YB removed it from folder and csv instead
 # pmTidy <- filter(pmTidy, ID != '1303_24')
-#ALSO NEED TO REMOVE 1705_112 peak A, type max
+#ALSO NEED TO REMOVE 1705_112 peak A, type max bc it's on Maui
 pmTidy <- filter(pmTidy, ID != '1705_112' | peak !='A')
 
 #convert pdist to km

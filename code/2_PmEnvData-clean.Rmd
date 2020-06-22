@@ -234,7 +234,7 @@ for (i in 1:length(lon)) {
 ww3=ww3[-1,]
 names(ww3) = c("date", "matched_lat", "matched_lon", "whght", "wtime")
 
-ww3$wavepow = (1024*9.8^2)/(64*pi)*ww3$whght^2*ww3$wtime
+ww3$wavepow2 = ((1024*(9.8^2))/(64*pi))*ww3$whght^2*ww3$wtime
 ```
 
 
@@ -560,104 +560,6 @@ write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataLocTrk_20200
 ```
 
 
-#Left vs Right for Localized Data using "Best" location
-```{r}
-
-#filter for localized data and predictors only
-SwEnvDataLocA <- filter(SwEnvData_scale, loc ==1 & peak == 'A') #peak A
-SwEnvDataLocB <- filter(SwEnvData_scale, loc ==1 & peak == 'B') #peak B
-SwEnvDataLocT <- filter(SwEnvData_scale, loc ==0) #trackline
-
-#for trackline location data
-swtrk <- select(SwEnvDataLocTrk, ID, lon_trk, lat_trk, sstAQ_m:eke)
-swtrk_sub <- distinct(swtrk, ID, .keep_all = TRUE)
-swtrklong <- swtrk_sub %>% pivot_longer(-(ID:lat_trk),names_to = 'variable', values_to = 'values')
-swtrklong$peak <- 'trk'
-
-#for localized peak data
-
-
-sw.best <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best') 
-sw.bestA <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best' & SwEnvData_scale$peak == 'A')
-sw.bestB <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best' & SwEnvData_scale$peak == 'B')
-
-sw.best <-  filter(SwEnvData, SwEnvData$type == 'best') 
-sw.bestA <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'A')
-sw.bestB <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'B')
-
-
-
-
-#find the IDs that don't match between the dataframes
-temp <-sw.bestA$ID[!(sw.bestA$ID %in% sw.bestB$ID)] #A has more rows than B, find the IDs that are different. These should be the single peak encounters in the peak1 folder
-# temp2 <-sw.bestB$ID[!(sw.bestB$ID %in% sw.bestA$ID)] #A has more rows than B, find the IDs that are different
-
-#remove the rows in the dataframes with that IDs that don't match
-sw.bestA2 <- sw.bestA[!sw.bestA$ID %in% temp, ]  #remove single peak encounters because they only have peak A
-# sw.bestB2 <- sw.bestB[!sw.bestB$ID %in% temp2, ]
-
-#Remember, using scaled data
-par(mfrow=c(3, 2))
-plot(sw.bestA2$sstAQ_m, sw.bestB$sstAQ_m)
-plot(sw.bestA2$temp600C, sw.bestB$temp600C)
-plot(sw.bestA2$chla_m, sw.bestB$chla_m)
-plot(sw.bestA2$par_m, sw.bestB$par_m)
-plot(sw.bestA2$wind_ms, sw.bestB$wind_ms)
-
-cor(sw.bestA2$sstAQ_m, sw.bestB$sstAQ_m)
-#correlated, don't care about them
-# plot(sw.bestA2$temp100C, sw.bestB$temp100C)
-# plot(sw.bestA2$temp500C, sw.bestB$temp500C)
-#!!!
-
-plot(sw.bestA2$bath, sw.bestB$bath, main="bathymetric depth")
-plot(sw.bestA2$slp_deg, sw.bestB$slp_deg, main = 'slope')
-plot(sw.bestA2$asp_deg, sw.bestB$asp_deg, main = 'aspect')
-plot(sw.bestA2$d2land_km, sw.bestB$d2land_km)
-plot(sw.bestA2$d2smt_km, sw.bestB$d2smt_km)
-mdl <- lm(sw.bestA2$d2smt_km ~ sw.bestB$d2smt_km)
-pval = round(summary(mdl)$coefficients[2,4],5)
-r2 = summary(mdl)$adj.r.squared
-
-
-
-par(mfrow=c(2, 2))
-plot(sw.bestA2$wavepow, sw.bestB$wavepow, main = 'wave power')
-plot(sw.bestA2$ssh, sw.bestB$ssh)
-plot(sw.bestA2$sshsd, sw.bestB$sshsd)
-plot(sw.bestA2$eke, sw.bestB$eke)
-
-
-#correlated, don't care about them
-# plot(sw.bestA2$temp100C, sw.bestB$temp100C)
-# plot(sw.bestA2$temp500C, sw.bestB$temp500C)
-
-#Histograms -> includes all 
-require(Cairo)
-Cairo(paste0(dirfig, "Histograms1.png"), width = 1000, height = 600, dpi=300)
-par(mfrow=c(3, 2))
-hist(SwEnvData_pred$sstAQ_m, xlab = expression(paste("SST ("^"o", "C",")")), main=NULL)
-hist(SwEnvData_pred$temp600C, xlab = expression(paste("Temp at 600 m ("^"o", "C",")")), main=NULL)
-hist(SwEnvData_pred$chla_m, xlab = expression(paste("Chl a (mg", "/m"^"3",")")), main=NULL)
-hist(SwEnvData_pred$par_m, xlab = expression(paste("PAR (E m"^"-2", "day"^"-1",")")), main=NULL)
-hist(SwEnvData_pred$wind_ms, xlab = 'Wind Speed (m/s)', main=NULL)
-dev.off()
-png(paste0(dirfig, "Histograms2.png"), width = 1000, height = 600)
-hist(SwEnvData_pred$bath, xlab="Bathymetric Depth (m)", main=NULL)
-hist(SwEnvData_pred$slp_deg,  xlab = 'Slope (deg)', main=NULL)
-hist(SwEnvData_pred$asp_deg,  xlab = 'Aspect (deg)', main=NULL)
-hist(SwEnvData_pred$d2land_km, xlab = 'Dist to Land (km)', main=NULL)
-hist(SwEnvData_pred$d2smt_km, xlab = 'Dist to Seamount (km)', main=NULL)
-dev.off()
-png(paste0(dirfig, "Histograms3.png"), width = 1000, height = 600)
-par(mfrow=c(3, 2))
-hist(SwEnvData_pred$wavepow, xlab = 'Wave Power (kW/m)', main=NULL)
-hist(SwEnvData_pred$ssh, xlab = 'SSH', main=NULL)
-hist(SwEnvData_pred$sshsd, xlab = 'SSHsd', main=NULL)
-hist(SwEnvData_pred$eke, xlab = expression(paste("EKE (m"^"2", "/s"^"2",")")), main=NULL)
-
-
-```
 
 
 

@@ -55,6 +55,9 @@ nout = nlayers(sshb) #layers represent months in the brick
 
 
 ################ SSH ####################
+lon=sw$lon2
+
+
 #Get the SSH
 sshtotal = NULL
 for (band in 1:nout) {
@@ -96,16 +99,16 @@ for (i in 1:nrow(sw)){
 
 ################ SSH SD  ####################
 #Get the standard deviation of SSH
-sshsdtotal = NULL
+sshsdtotal5 = NULL
 for (band in 1:nout) {
   start = sshb[[band]] #select a band/month
-  foc = focal(start, w=matrix(1,3,3), fun=sd) #use foc to take stand dev of each point using 3x3 cells
+  foc = focal(start, w=matrix(1/25,5,5), fun=sd) #use foc to take stand dev of each point using 3x3 cells
   df = as.data.frame(rasterToPoints(foc)) #convert rasterlayer into df
   colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
-  sshsdtotal = cbind(sshsdtotal, df[, 3]) #each column is the SSHsd for each month
+  sshsdtotal5 = cbind(sshsdtotal5, df[, 3]) #each column is the SSHsd for each month
   
 } 
-saveRDS(sshsdtotal, file = paste0(here::here('data'), '/', 'sshsd_total.rda'))
+saveRDS(sshsdtotal5, file = paste0(here::here('data'), '/', 'sshsd_total5.rda'))
 
 sshZtotal <- as_tibble(cbind(df[,1:2], sshsdtotal)) 
 #need column names to be the actual dates
@@ -172,6 +175,8 @@ dev.off()
 png(paste0(dirfig, "SSHsd_Oct2017_sum.png"), width = 1000, height = 600)
 plot(sshfocsum, main = "Oct 2017 Standard Deviation SSH (m)")
 par(new=TRUE)
+plot(diffsshsddf$lon2, diffsshsddf$lat, col="black", pch=16, cex=1, xlab='', ylab='', axes=F) #big diff in sshsd
+
 plot(swOct17$xlon2, swOct17$ylat, col="black", pch=16, cex=1,xlab='', ylab='', axes=F)
 
 dev.off()
@@ -257,6 +262,7 @@ for (band in 1:nout) {
   utotal = cbind(utotal, df[, 3]) #each column is the SSHsd for each month
   
 } 
+
 uZtotal <- as_tibble(cbind(df[,1:2], utotal)) 
 #need column names to be the actual dates
 uZtotaldat <- uZtotal[3:94]
@@ -289,6 +295,8 @@ vZtotal <- cbind(vZtotal[,1:2], vZtotaldat)
 vZtidya <- vZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'v')
 
 
+saveRDS(utotal, file = paste0(here::here('data'), '/', 'u_total.rda'))
+saveRDS(vtotal, file = paste0(here::here('data'), '/', 'v_total.rda'))
 
 
 ################ EKE data ####################

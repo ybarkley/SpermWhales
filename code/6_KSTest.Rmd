@@ -4,6 +4,7 @@ output: html_notebook
 editor_options: 
   chunk_output_type: inline
 ---
+IN PROGRESS: June 17,2020
 Compare random distribution of data with sperm whale data using Kolmogorov-Smirnov Tests.
 
 ```{r}

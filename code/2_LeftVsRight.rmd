@@ -1,0 +1,395 @@
+---
+title: "Left vs Right for Localized Encounters"
+author: "Yvonne Barkley"
+date: "6/3/2020"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+Libraries
+```{r}
+library(rcompanion)
+library(tidyverse)
+library(data.table)
+```
+#Left/Right Take 2
+As of 6/2/2020 committee meeting, it was suggested that I consider the distance of the location estimates when comparing the left and right values of the env data for the localized encounters. 
+Erin suggested taking the difference of L and R and then taking that distribution of differences and comparing them to the perpendicular distances. I'd expect that the bigger the distance, the bigger the difference in L/R. Then also think about the spatial variability within the env data itself - like whether there is large variability but finer resolution. Jeff keeps reiterating to figure out the size of the box that I'm using when looking at each data point and computing the standard deviations. This will give me a better sense of the mesoscale features that may be occurring and whether the sperm whales are associated with them in some way, depending on their spatial relationship with them.
+
+#Difference in Left and Right
+```{r}
+#filter for loc and vis encs
+sw.locvis <- filter(SwEnvData, loc == 1 | sid < 999)
+sw.locvis <- filter(SwEnvData, type == 'best' | type == 'NA')
+
+#remove 1-peak encounters
+LR <-filter(SwEnvData, peak == 'A' | peak == 'B')
+LR <-select(SwEnvData, ID, UTC, lon, lat, peak, itrk, type, pdist, sstAQ_m:eke)
+LRbest <-filter(LR, type == 'best', itrk == 1)
+LRbestA <- filter(LRbest, peak =='A')
+LRbestB <- filter(LRbest, peak =='B')
+
+## DON"T DO: plot all env values for all peaks 
+# ggplot(LR, aes(pdist, bath, color=ID))+
+#   geom_point() +
+#   theme(legend.position = 'none')
+
+
+#Difference in env data between peaks
+
+# require(data.table)
+LRbest <- data.table(LRbest)
+LRbest[, diffsst := abs(sstAQ_m - shift(sstAQ_m)), by = ID]
+LRbest[, difft600 := abs(temp600C - shift(temp600C)), by = ID]
+LRbest[, diffchla := abs(chla_m - shift(chla_m)), by = ID]
+LRbest[, diffbath := abs(bath - shift(bath)), by = ID]
+LRbest[, diffslp := abs(slp_deg - shift(slp_deg)), by = ID]
+LRbest[, diffasp := abs(asp_deg - shift(asp_deg)), by = ID]
+LRbest[, diffdland := abs(d2land_km - shift(d2land_km)), by = ID]
+LRbest[, diffdmst := abs(d2smt_km - shift(d2smt_km)), by = ID]
+LRbest[, diffwp := abs(wavepow - shift(wavepow)), by = ID]
+LRbest[, diffssh := abs(ssh - shift(ssh)), by = ID]
+LRbest[, diffsshsd := abs(sshsd - shift(sshsd)), by = ID]
+LRbest[, diffeke := abs(eke - shift(eke)), by = ID]
+
+
+
+#mean peak distances vary
+lrbest <-LRbest %>% drop_na(diffsst:diffeke)  ## results in 53 IDs because 6 only have single peak, no 1705.A112
+
+meandist <-group_by(lrbest, ID) %>% summarize(m=mean(abs(pdist)))
+
+temp <-meandist$ID[!(meandist$ID %in% lrbest$ID)] #find the single peaks that aren't in lrbest
+lrbest2 <- meandist[!meandist$ID %in% temp, ]  #remove these encounters from meandist to add in as col of lrbest 
+lrbestyay <-cbind(lrbest2[2], lrbest)
+
+
+##### Bathymetry #### 
+plot(lrbestyay$m, abs(lrbestyay$diffbath), main="bathymetric depth", xlab = 'Mean Distance (km)', ylab = 'Diff in Bathymetry (m)')
+hist(abs(lrbestyay$diffbath), breaks = 10, main='Distribution of Bathy Differences')
+#pull out data with diffs > 500 m
+diffbath <- filter(lrbestyay, abs(lrbestyay$diffbath) > 500 & diffbath !='NA') # %>% na.exclude  # lrbestyay[which(abs(lrbestyay$diffbath)) > 1000, ]
+bathID <-diffbath$ID
+diffbathdf <- LRbest[LRbest$ID %in% bathID,] #pull out the rows in LRbest that match (are in) the IDs in bathID
+
+ggplot(diffbathdf, aes(pdist, diffbath, color=ID))+
+  geom_point(size=3)# +
+
+#test to determine which distribution the data follow
+require(EnvStats)
+gofTest(abs(sw.locvis$bath), test = 'sw', distribution = 'weibull')  
+  
+  
+#old
+#show distribution of depths from localized and visual data
+hist(sw.locvis$bath, prob=1, breaks = 20)
+lines(density(sw.locvis$bath), col=2)
+bath_sqrt = sqrt(abs(sw.locvis$bath))
+hist(bath_sqrt, breaks = 20)
+
+hist(SwEnvData_scale$bath, prob=1, breaks = 20)
+lines(density(sw.locvis$bath), col=2)
+bath_log = log((SwEnvData_scale$bath))
+hist(bath_log, breaks = 20)
+library(rcompanion)
+
+plotDensityHistogram(SwEnvData_scale$bath)
+qqnorm(SwEnvData_scale$bath)
+qqline(SwEnvData_scale$bath, col='red')
+
+bathsd = sd(sw.locvis$bath)
+den = density(sw.locvis$bath)
+
+bath_d <- ecdf(sw.locvis$bath)
+summary(bath_d)
+plot(bath_d)
+1-bath_d(-1325)
+1-bath_d(-3422)
+
+
+dnorm(-1325, mean = mean(den$x), sd = bathsd)
+dnorm(-3422, mean = mean(den$x), sd = bathsd)
+
+
+#compare left and right values?
+
+hist(LRbestA$bath, col=rgb(1,0,0,0.5), prob = 1, main='A is red, B is blue', breaks=15)
+hist(LRbestB$bath, add=TRUE, col=rgb(0,0,1,0.5), prob = 1, breaks=15)
+lines(density(LRbestA$bath), col=2)
+lines(density(LRbestB$bath), col=4)
+bath_dA <- ecdf(LRbestA$bath)
+bath_dB <- ecdf(LRbestB$bath)
+
+
+
+####### Experimental marmap#####
+# require(marmap)
+# require(maps)
+# #get hawaii bathymetry
+# library(mapdata)
+# data(hawaii)
+# # Create nice color palettes
+# blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
+# greys <- c(grey(0.6), grey(0.93), grey(0.99))
+# 
+# plot(hawaii, land=TRUE, lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+# text(diffbathdf$lon, diffbathdf$lat, labels=diffbathdf$bath, col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+# # Add -200m and -1000m isobath
+# plot(hawaii, deep=-200, shallow=-200, step=0, lwd=0.5, drawlabel=TRUE, add=TRUE, col='blue')
+# plot(hawaii, deep=-1000, shallow=-1000, step=0, lwd=0.3, drawlabel=TRUE, add=TRUE, col='magenta')
+# plot(hawaii, deep=-3000, shallow=-3000, step=0, lwd=0.3, drawlabel=TRUE, add=TRUE, col='orange')
+# 
+# bathyxyzsub <- filter(bathy_tot, lon >=-179 & lon <= -162) 
+# write.table(bathyxyzsub, "bathy_totsub.csv", sep = ",", quote = FALSE, row.names = FALSE)
+# bathyxyzsub <- read.bathy( "bathy_totsub.csv")
+# summary(bathyxyzsub)
+# plot(bathyxyzsub, land = TRUE)
+
+
+
+
+
+
+##### Slope #####
+plot(lrbestyay$m, abs(lrbestyay$diffslp), main = 'slope')
+diffslp <- filter(LRbest, abs(LRbest$diffslp) > 10) 
+slpID <- diffslp$ID
+diffslpdf <- LRbest[LRbest$ID %in% slpID,] #pull out the rows in LRbest that match (are in) db
+plot(hawaii, land=TRUE, lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+text(diffslpdf$lon, diffslpdf$lat, labels=round(diffslpdf$slp_deg,2), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(diffslpdf$lon, diffslpdf$lat, col='magenta', pch = 19)
+
+##### Aspect ####
+hist(LRbest$asp_deg, breaks = 10, main='Distribution of Aspect')
+plot(lrbestyay$m, abs(lrbestyay$diffasp), main = 'Diff in Aspect over Distance')
+# diffasp <- filter(LRbest, abs(LRbest$diffasp) > ??) 
+# aspID <- diffasp$ID
+# diffaspdf <- LRbest[LRbest$ID %in% aspID,] #pull out 
+
+
+plot(lrbestyay$m, sw.bestB$d2land_km)
+plot(lrbestyay$m, sw.bestB$d2smt_km)
+mdl <- lm(sw.bestA2$d2smt_km ~ sw.bestB$d2smt_km)
+pval = round(summary(mdl)$coefficients[2,4],5)
+r2 = summary(mdl)$adj.r.squared
+
+##### Wave Power ####
+plot(lrbestyay$m, abs(lrbestyay$diffwp), main = 'wave power')
+diffwp <- filter(LRbest, abs(LRbest$diffwp) > 100) 
+wpID <- diffwp$ID
+diffwpdf <- LRbest[LRbest$ID %in% wpID,] #pull out the rows in LRbest that match (are in) db
+plot(hawaii, lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+text(diffwpdf$lon, diffwpdf$lat, labels=round(diffwpdf$wavepow,2), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(diffwpdf$lon, diffwpdf$lat, col='magenta', pch = 19)
+
+
+##### EKE ####
+
+plot(lrbestyay$m, abs(lrbestyay$diffeke), main = 'diff in ssh sd')
+diffeke <- filter(LRbest, abs(LRbest$diffeke) > 0.0005) 
+ekeID <- diffeke$ID
+diffekedf <- LRbest[LRbest$ID %in% ekeID,] #pull out the rows in LRbest that match (are in) db
+plot(hawaii,lwd=.5, las=1, main='EKE') #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+text(diffekedf$lon, diffekedf$lat, labels=round(diffekedf$d2smt,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(diffekedf$lon, diffekedf$lat, col='magenta', pch = 19)
+
+
+##### SSHsd ####
+plot(lrbestyay$m, abs(lrbestyay$diffsshsd), main = 'diff in ssh sd')
+diffsshsd <- filter(LRbest, abs(LRbest$diffsshsd) > 0.003) 
+sshsdID <- diffsshsd$ID
+diffsshsddf <- LRbest[LRbest$ID %in% sshsdID,] #pull out the rows in LRbest that match (are in) db
+plot(hawaii,lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+text(diffsshsddf$lon, diffsshsddf$lat, labels=round(diffsshsddf$sshsd,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(diffsshsddf$lon, diffsshsddf$lat, col='magenta', pch = 19)
+
+diffsshsddf$lon2 <- ifelse(diffsshsddf$lon<0, diffsshsddf$lon+360, diffsshsddf$lon)
+
+
+##### Dist 2 Seamount ####
+
+plot(lrbestyay$m, abs(lrbestyay$diffdmst), main = 'diff in ssh sd')
+diffdsmt <- filter(LRbest, abs(LRbest$diffdmst) > 15) 
+d2smtID <- diffdsmt$ID
+diffd2smtdf <- LRbest[LRbest$ID %in% d2smtID,] #pull out the rows in LRbest that match (are in) db
+plot(hawaii,lwd=.5, las=1, main='Dist 2 Seamounts') #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+text(diffd2smtdf$lon, diffd2smtdf$lat, labels=round(diffd2smtdf$d2smt,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(diffd2smtdf$lon, diffd2smtdf$lat, col='magenta', pch = 19)
+
+```
+
+
+#Explore outliers
+```{r}
+#find which encounters are outliers and if they overlap across different variables
+diffvars <- as.data.frame(cbind(bathID,d2smtID, ekeID, sshsdID,slpID, wpID))
+
+#try to find IDs that repeat between columns based on the bath outliers
+diffvars[diffvars$bathID %in% diffvars$d2smtID, 2]  #
+
+#between bathymetry and distance to seamount
+bath_d2smt = data.frame(bath_d2smt=unique(diffvars$bathID[match(diffvars$d2smtID, diffvars$bathID )]))  #
+bath_d2smt$row <- row.names(bath_d2smt)
+#between bath and eke
+bath_eke = data.frame(bath_eke=unique(diffvars$bathID[match(diffvars$ekeID, diffvars$bathID )]))  #
+bath_eke$row <- row.names(bath_eke)
+#between bath and sshsd
+bath_sshsd = data.frame(bath_sshsd=unique(diffvars$bathID[match(diffvars$sshsdID, diffvars$bathID )]))  #
+bath_sshsd$row <- row.names(bath_sshsd)
+#between bath and slpID
+bath_slp = data.frame(bath_slp=unique(diffvars$bathID[match(diffvars$slpID , diffvars$bathID)]))  #
+bath_slp$row <- row.names(bath_slp)
+#between bath and wpID
+bath_wp = data.frame(bath_wp=unique(diffvars$bathID[match(diffvars$wpID, diffvars$bathID)]))  #
+bath_wp$row <- row.names(bath_wp)
+
+#different number of rows, so have to merge on "row" column since each df has it
+merge1<- merge(bath_d2smt, bath_eke, by = "row", all=TRUE)
+merge2<- merge(merge1, bath_sshsd, by = "row", all=TRUE)
+merge3<- merge(merge2, bath_slp, by = "row", all=TRUE)
+merge4<- merge(merge3, bath_wp, by = "row", all=TRUE)
+
+LRbest <- LRbest[, c(1,2,4,3,5:36)]
+look <- filter(LRbest, LRbest$ID == '1604_57_999')
+plot(hawaii,lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
+# text(A20_1303$lon, A20_1303$lat, labels=round(A20_1303$sshsd,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
+points(look$lon, look$lat, col='magenta', pch = 19)
+
+#between d2smt and variables
+d2smt_eke = data.frame(d2smt_eke=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$ekeID)]))  #
+d2smt_eke$row <- row.names(d2smt_eke)
+d2smt_sshsd = data.frame(d2smt_sshsd=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$sshsdID)]))  #
+d2smt_sshsd$row <- row.names(d2smt_sshsd)
+d2smt_slp = data.frame(d2smt_slp=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$slpID)]))  #
+d2smt_slp$row <- row.names(d2smt_slp)
+d2smt_wp = data.frame(d2smt_wp=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$wpID)]))  #
+d2smt_wp$row <- row.names(d2smt_wp)
+
+merge5<- merge(d2smt_eke, d2smt_sshsd, by = "row", all=TRUE)
+merge6<- merge(merge5, d2smt_slp, by = "row", all=TRUE)
+merge7<- merge(merge6, d2smt_wp, by = "row", all=TRUE)
+
+#between eke and variables
+eke_sshsd = data.frame(eke_sshsd=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$sshsdID)]))  #
+eke_slp = data.frame(eke_slp=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$slpID)]))  #
+eke_wp = data.frame(eke_wp=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$wpID)]))  #
+
+#between sshsd and variables
+sshsd_slp = data.frame(sshsd_slp=unique(diffvars$sshsdID[match(diffvars$sshsdID, diffvars$slpID)]))  #
+sshsd_wp = data.frame(sshsd_wp=unique(diffvars$sshsdID[match(diffvars$sshsdID, diffvars$wpID)]))  #
+
+#between slp and wp
+slp_wp = data.frame(slp_wp=unique(diffvars$slpID[match(diffvars$slpID, diffvars$wpID)]))  #
+
+
+```
+
+#Take 1: Left vs Right for Localized Data using "Best" location
+First attempt at examining the relationship between the left and right values of the env data for localized encounters. YB found them to be similar when fitting a linear model to them. YB took the mean value to compare with the trackline locations of each encounter.
+```{r}
+
+#filter for localized data and predictors only
+SwEnvDataLocA <- filter(SwEnvData_scale, loc ==1 & peak == 'A') #peak A
+SwEnvDataLocB <- filter(SwEnvData_scale, loc ==1 & peak == 'B') #peak B
+SwEnvDataLocT <- filter(SwEnvData_scale, loc ==0) #trackline
+
+#for trackline location data
+swtrk <- select(SwEnvDataLocTrk, ID, lon_trk, lat_trk, sstAQ_m:eke)
+swtrk_sub <- distinct(swtrk, ID, .keep_all = TRUE)
+swtrklong <- swtrk_sub %>% pivot_longer(-(ID:lat_trk),names_to = 'variable', values_to = 'values')
+swtrklong$peak <- 'trk'
+
+#for localized peak data
+
+
+sw.best <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best') 
+sw.bestA <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best' & SwEnvData_scale$peak == 'A')
+sw.bestB <- filter(SwEnvData_scale, SwEnvData_scale$type == 'best' & SwEnvData_scale$peak == 'B')
+
+sw.best <-  filter(SwEnvData, SwEnvData$type == 'best') 
+sw.bestA <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'A')
+sw.bestB <- filter(SwEnvData, SwEnvData$type == 'best' & SwEnvData$peak == 'B')
+
+
+#find the IDs that don't match between the dataframes
+temp <-sw.bestA$ID[!(sw.bestA$ID %in% sw.bestB$ID)] #A has more rows than B, find the IDs that are different. These should be the single peak encounters in the peak1 folder
+# temp2 <-sw.bestB$ID[!(sw.bestB$ID %in% sw.bestA$ID)] #A has more rows than B, find the IDs that are different
+
+#remove the rows in the dataframes with that IDs that don't match
+sw.bestA2 <- sw.bestA[!sw.bestA$ID %in% temp, ]  #remove single peak encounters because they only have peak A
+# sw.bestB2 <- sw.bestB[!sw.bestB$ID %in% temp2, ]
+
+#Remember, using scaled data
+par(mfrow=c(3, 2))
+plot(sw.bestA2$sstAQ_m, sw.bestB$sstAQ_m)
+plot(sw.bestA2$temp600C, sw.bestB$temp600C)
+plot(sw.bestA2$chla_m, sw.bestB$chla_m)
+plot(sw.bestA2$par_m, sw.bestB$par_m)
+plot(sw.bestA2$wind_ms, sw.bestB$wind_ms)
+
+cor(sw.bestA2$sstAQ_m, sw.bestB$sstAQ_m)
+#correlated, don't care about them
+# plot(sw.bestA2$temp100C, sw.bestB$temp100C)
+# plot(sw.bestA2$temp500C, sw.bestB$temp500C)
+#!!!
+
+plot(sw.bestA2$bath, sw.bestB$bath, main="bathymetric depth")
+plot(sw.bestA2$slp_deg, sw.bestB$slp_deg, main = 'slope')
+plot(sw.bestA2$asp_deg, sw.bestB$asp_deg, main = 'aspect')
+plot(sw.bestA2$d2land_km, sw.bestB$d2land_km)
+plot(sw.bestA2$d2smt_km, sw.bestB$d2smt_km)
+mdl <- lm(sw.bestA2$d2smt_km ~ sw.bestB$d2smt_km)
+pval = round(summary(mdl)$coefficients[2,4],5)
+r2 = summary(mdl)$adj.r.squared
+
+par(mfrow=c(2, 2))
+plot(sw.bestA2$wavepow, sw.bestB$wavepow, main = 'wave power')
+plot(sw.bestA2$ssh, sw.bestB$ssh)
+mdlssh <- lm(sw.bestA2$ssh ~ sw.bestB$ssh)
+pvalmdlssh = round(summary(mdlssh)$coefficients[2,4],5)
+r2mdlssh = summary(mdlssh)$adj.r.squared
+
+plot(sw.bestA2$sshsd, sw.bestB$sshsd)
+mdlsshsd <- lm(sw.bestA2$sshsd ~ sw.bestB$sshsd)
+pvalmdlsshsd = round(summary(mdlsshsd)$coefficients[2,4],5)
+r2mdlsshsd = summary(mdlsshsd)$adj.r.squared
+
+plot(sw.bestA2$eke, sw.bestB$eke)
+mdleke <- lm(sw.bestA2$eke ~ sw.bestB$eke)
+pvalmdleke = round(summary(mdleke)$coefficients[2,4],5)
+r2mdleke = summary(mdleke)$adj.r.squared
+
+#correlated, don't care about them
+# plot(sw.bestA2$temp100C, sw.bestB$temp100C)
+# plot(sw.bestA2$temp500C, sw.bestB$temp500C)
+
+#Histograms -> includes all 
+require(Cairo)
+Cairo(paste0(dirfig, "Histograms1.png"), width = 1000, height = 600, dpi=300)
+par(mfrow=c(3, 2))
+hist(SwEnvData_pred$sstAQ_m, xlab = expression(paste("SST ("^"o", "C",")")), main=NULL)
+hist(SwEnvData_pred$temp600C, xlab = expression(paste("Temp at 600 m ("^"o", "C",")")), main=NULL)
+hist(SwEnvData_pred$chla_m, xlab = expression(paste("Chl a (mg", "/m"^"3",")")), main=NULL)
+hist(SwEnvData_pred$par_m, xlab = expression(paste("PAR (E m"^"-2", "day"^"-1",")")), main=NULL)
+hist(SwEnvData_pred$wind_ms, xlab = 'Wind Speed (m/s)', main=NULL)
+dev.off()
+png(paste0(dirfig, "Histograms2.png"), width = 1000, height = 600)
+hist(SwEnvData_pred$bath, xlab="Bathymetric Depth (m)", main=NULL)
+hist(SwEnvData_pred$slp_deg,  xlab = 'Slope (deg)', main=NULL)
+hist(SwEnvData_pred$asp_deg,  xlab = 'Aspect (deg)', main=NULL)
+hist(SwEnvData_pred$d2land_km, xlab = 'Dist to Land (km)', main=NULL)
+hist(SwEnvData_pred$d2smt_km, xlab = 'Dist to Seamount (km)', main=NULL)
+dev.off()
+png(paste0(dirfig, "Histograms3.png"), width = 1000, height = 600)
+par(mfrow=c(3, 2))
+hist(SwEnvData_pred$wavepow, xlab = 'Wave Power (kW/m)', main=NULL)
+hist(SwEnvData_pred$ssh, xlab = 'SSH', main=NULL)
+hist(SwEnvData_pred$sshsd, xlab = 'SSHsd', main=NULL)
+hist(SwEnvData_pred$eke, xlab = expression(paste("EKE (m"^"2", "/s"^"2",")")), main=NULL)
+
+
+```
+
+
+

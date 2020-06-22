@@ -17,8 +17,10 @@ library(here) #helps with stupid root dir and accessing subfolders, it's awesome
 library(rstatix)
 ```
 #Wilcoxon Test
-Testing whether there's a difference in env data between the localized locations and the trackline locations
+Testing whether there's a difference in env data between the localized locations and the trackline locations.
 https://www.datanovia.com/en/lessons/wilcoxon-test-in-r/#signed-rank-test-on-paired-samples
+
+
 ```{r}
 #Take the mean of the env data for peaks A & B for each variable since 1:1 plots showed them to be similar
 swenvloc <- filter(SwEnvData, loc == 1)

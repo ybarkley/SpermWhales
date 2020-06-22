@@ -61,7 +61,6 @@ SwEnvData_mapb3$enctype <- 'vis'
 SwEnvData_mapb = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2,SwEnvData_mapb3))
 
 
-
 ```
 
 
@@ -78,14 +77,25 @@ hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
 #Plot all encounters
 Shape by enc type (loc, unloc, vis), color by year
 ```{r}
+SwEnvData_mapbYr1 <- filter(SwEnvData_mapb, survey == '1303')
+SwEnvData_mapbYr2 <- filter(SwEnvData_mapb, survey == '1604')
+SwEnvData_mapbYr3 <- filter(SwEnvData_mapb, survey == '1641' | survey == '1642')
+SwEnvData_mapbYr4 <- filter(SwEnvData_mapb, survey == '1705' | survey == '1706')
+
+SwEnvData_mapbYr1$year <- '2013'
+SwEnvData_mapbYr2$year <- '2016'
+SwEnvData_mapbYr3$year <- '2010'
+SwEnvData_mapbYr4$year <- '2017'
+
+SwEnvData_mapb <- rbind.data.frame(SwEnvData_mapbYr1,SwEnvData_mapbYr2,SwEnvData_mapbYr3,SwEnvData_mapbYr4)
 
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
-  geom_point(aes(color=as.factor(survey), shape=enctype), size=3) +
+  geom_point(aes(color=as.factor(year), shape=enctype), size=3) +
   theme_bw() +
   scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
   scale_x_continuous(name='Longitude', breaks=round(long,1)) +
    scale_shape_manual(values=c(8, 17, 15),name='Enc Type', labels=c("Ac_Localized", "Ac_Unlocalized","Sighting")) +
- scale_color_manual(values = c("#d64161", "#ff7b25", "#feb236", "#86af49","#92a8d1", "#6b5b95"), name='Survey') +
+ scale_color_manual(values = c("#d64161", "#ff7b25",  "#86af49", "#6b5b95"), name='Year') + #feb236", "#92a8d1",
   geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
   ggtitle("All Sperm Whale Encounters") +
@@ -242,6 +252,22 @@ ggplot(SwEnvData_mapb, aes(lon, lat)) +
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(paste0(dir, 'SW_SSHsd.png'), width=8, height = 6, units='in', dpi=300)
+
+
+
+#####Compare sshsd#######
+#June 6, 2020: Compare matched locations to true locations -> these match up super well
+
+ggplot() +
+  geom_point(SwEnvData, mapping =aes(lon2, lat, color=sshsd), size=3) +
+  geom_point(data=sshsd_match2, mapping = aes(lon, lat), size=3, pch=1, color='magenta') +
+  ggtitle("Comparing Matched to True Locations of SSHSD") +
+  theme_bw() 
+
+na<-which(is.na(sshsd_match2))
+sshsd_match2[121,]
+
+
 ```
 
 #EKE plot
@@ -525,6 +551,42 @@ ggplot(social, aes(lon, lat)) +
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 
 ggsave(paste0(dir, 'SW_ClickType_social.png'), width=8, height = 6, units='in', dpi=300)
+```
+
+
+#Clicks vs Group size
+```{r}
+# plot(SwEnvData_mapb3$cpm, SwEnvData_mapb3$grpsize, xlab='Clicks per Minute', ylab='Group Size')
+
+SwEnvData_mapb4 <- filter(SwEnvData_mapb3, cpm != 'Inf')
+mdlclick <- lm(SwEnvData_mapb4$grpsize ~ SwEnvData_mapb4$cpm)
+pvalmdlclick = round(summary(mdlclick)$coefficients[2,4],5)
+r2mdlclick = summary(mdlclick)$adj.r.squared
+
+plotOrder <- order(SwEnvData_mapb4$cpm)
+cint <- as.data.frame(predict(mdlclick, interval = "confidence"))
+
+ggplot(SwEnvData_mapb3, aes(cpm, grpsize)) +
+  stat_summary(fun.data = mean_cl_normal) +
+  geom_smooth(method = 'lm') +
+  geom_point(aes(shape =click_grp, color =as.factor(survey)), size=3) +#, color = 'blue') +
+  theme_bw() +
+  scale_y_continuous(name='Group Size')+
+  scale_x_continuous(name='Clicks per Minute')+
+  scale_shape_manual(values=c(19,15,17,18),
+                     name='group type',
+                     labels=c("forage", "male/forage", "male", "social")) +
+   scale_color_manual(values = c("#d64161", "#e67300", "#feb236", "#86af49","#92a8d1", "#6b5b95"), name='Survey')+
+  # geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  # coord_fixed(1) +
+  # ggtitle("# Clicks per min vs Group Size") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE)) 
+  
+
+
+
+
 ```
 
 #Correlation Matrix
