@@ -516,7 +516,7 @@ SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm,
 # SwEnvsub2 <- SwEnvsub2[, c(1:32, 38:41, 33:37)]
 # colnames(SwEnvsub2)[colnames(SwEnvsub2) %in% c('slp_asp_match$slope', 'slp_asp_match$aspect', 'dist2land$dist2land')] <- c('slp_deg', 'asp_deg', 'd2land_km')
 
-SwEnvData<-filter(SwEnvData, ID != '1705_112_999' | peak !='A')
+SwEnvData<-filter(SwEnvData, ID != '1705_112_999' | peak !='A' , ID != '1706_49_999' | peak != 'A')
 write.csv(SwEnvData, here::here('output', 'SpermiesWithEnvData_20200531.csv'), row.names = F)
 
 

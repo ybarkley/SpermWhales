@@ -380,9 +380,9 @@ str8SW = sw1303
 
 #Effort Match
 Determine when and where the acoustics team was ON effort along straight segments.
-Use the 'str8sub' data because those include only the straight 
+Use the 'str8sub' data for each survey because those include only the straight 
 ```{r}
-survey = 1303
+survey = 1706
 str8segs = eval(as.name(paste0('str8sub', survey)))
 str8SW = eval(as.name(paste0('sw', survey)))
 
@@ -440,7 +440,7 @@ str8eff <- data.frame(str8segs, join$aeffort, join$veffort) %>% drop_na(join.aef
   geom_point(aes(group=timeGroup, col=join.aeffort), size = 1) +
   scale_color_manual(values = c('red', 'darkgreen')) +
   
-  geom_point(data=str8SW, mapping = aes(lon, lat), shape = 15))
+  geom_point(data=str8SW, mapping = aes(lon2, lat), shape = 15))
 
 
 write.csv(str8eff, here::here('output', paste0('straightPathWeffort_', survey, '.csv')), row.names = FALSE)

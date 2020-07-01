@@ -4,7 +4,6 @@ library(Matrix)
 library(geosphere)
 library(Distance)
 library(mrds)
-library(stringr)
 
 calcEffort <- function(points, grid, n=10, d=4e3, dsmodel, plot=FALSE) {
     if(is.null(attr(grid, 'map'))) {
@@ -346,9 +345,8 @@ makeDetFun <- function(covarDf, dsModel=NULL) {
        is.numeric(dsModel)) {
         if(is.null(dsModel)) {
             probs <- 1
-        } else {
-            probs <- dsModel
         }
+        probs <- dsModel
         return(
             function(distance) {
                 rep(probs, length.out = length(distance))
@@ -544,7 +542,7 @@ doAllGrid <- function(gps, dets, bounds=NULL, trunc_m, dsmodel=NULL, pixel=NULL,
     }
     # this needs "effort" column, so we do this first
     # browser()
-    ends <- getEndPoints(gps, length = 1e3) # length of segs to break into, less should more accurate
+    ends <- getEndPoints(gps, length = 1e3) # length of segs to break into, less should more accurato
     effort <- calcEffort(points=ends, grid=conGrid, n=10, d=trunc_m, dsmodel=dsmodel)
     detGridIx <- sapply(1:nrow(dets), function(x) {
         searchPoint(c(dets$Longitude[x], dets$Latitude[x]), grid = conGrid, gridMap = attr(conGrid, 'map'))

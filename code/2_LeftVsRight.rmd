@@ -12,23 +12,38 @@ Libraries
 library(rcompanion)
 library(tidyverse)
 library(data.table)
+library(lubridate) #needs character or numeric to work
+
 ```
 #Left/Right Take 2
+6/28/2020 (where did this month go???)
+No pattern emerged when looking at the differences between LR and distance from the trackline. I selected out the outliers that occurred for each variable based on a value specific to the variable. 
+-'diffvars' is the df that shows the outliers per variable.
+-decided that choosing the peak with the deepest bathymetry is a simple, reasonable way to select between left and right. -Erin suggested trying to incorporate a variable that represents the variability in depth in a given area. Maybe able to do that with Taiki's env code...also not sure if that's necessary. Doesn't seem to be other papers that account for this.
+
+
 As of 6/2/2020 committee meeting, it was suggested that I consider the distance of the location estimates when comparing the left and right values of the env data for the localized encounters. 
-Erin suggested taking the difference of L and R and then taking that distribution of differences and comparing them to the perpendicular distances. I'd expect that the bigger the distance, the bigger the difference in L/R. Then also think about the spatial variability within the env data itself - like whether there is large variability but finer resolution. Jeff keeps reiterating to figure out the size of the box that I'm using when looking at each data point and computing the standard deviations. This will give me a better sense of the mesoscale features that may be occurring and whether the sperm whales are associated with them in some way, depending on their spatial relationship with them.
+Erin suggested taking the difference of L and R and then taking that distribution of differences and comparing them to the perpendicular distances. I'd expect that the bigger the distance, the bigger the difference in L/R. 
+
+Then also think about the spatial variability within the env data itself - like whether there is large variability but finer resolution. Jeff keeps reiterating to figure out the size of the box that I'm using when looking at each data point and computing the standard deviations. This will give me a better sense of the mesoscale features that may be occurring and whether the sperm whales are associated with them in some way, depending on their spatial relationship with them.
 
 #Difference in Left and Right
 ```{r}
+#load all data with env data
+SwEnvData <- read.csv('./output/SpermiesWithEnvData_20200531.csv')
 #filter for loc and vis encs
 sw.locvis <- filter(SwEnvData, loc == 1 | sid < 999)
 sw.locvis <- filter(SwEnvData, type == 'best' | type == 'NA')
 
 #remove 1-peak encounters
 LR <-filter(SwEnvData, peak == 'A' | peak == 'B')
-LR <-select(SwEnvData, ID, UTC, lon, lat, peak, itrk, type, pdist, sstAQ_m:eke)
+# LR <-select(SwEnvData, ID, UTC, lon, lat, peak, itrk, type, pdist, sstAQ_m:eke)
 LRbest <-filter(LR, type == 'best', itrk == 1)
 LRbestA <- filter(LRbest, peak =='A')
 LRbestB <- filter(LRbest, peak =='B')
+
+
+LRbest$asp_rad <- LRbest$asp_deg * 0.017453
 
 ## DON"T DO: plot all env values for all peaks 
 # ggplot(LR, aes(pdist, bath, color=ID))+
@@ -36,7 +51,7 @@ LRbestB <- filter(LRbest, peak =='B')
 #   theme(legend.position = 'none')
 
 
-#Difference in env data between peaks
+#####Get the difference in env data between peaks A and B for each two-peak encounter#####
 
 # require(data.table)
 LRbest <- data.table(LRbest)
@@ -52,15 +67,17 @@ LRbest[, diffwp := abs(wavepow - shift(wavepow)), by = ID]
 LRbest[, diffssh := abs(ssh - shift(ssh)), by = ID]
 LRbest[, diffsshsd := abs(sshsd - shift(sshsd)), by = ID]
 LRbest[, diffeke := abs(eke - shift(eke)), by = ID]
+LRbest[, diffasp2 := abs(asp_rad - shift(asp_rad)), by = ID]
 
 
+# remove the single peak encounters
+lrbest <-LRbest %>% drop_na(diffsst:diffeke)  ## results in 53 IDs because 6 only have single peak, no 1705.A112, 1706.A49 etc.
 
-#mean peak distances vary
-lrbest <-LRbest %>% drop_na(diffsst:diffeke)  ## results in 53 IDs because 6 only have single peak, no 1705.A112
-
+#Since peak distances may vary between Peaks A & B, but need to take the mean for the two-peak encounters
 meandist <-group_by(lrbest, ID) %>% summarize(m=mean(abs(pdist)))
 
-temp <-meandist$ID[!(meandist$ID %in% lrbest$ID)] #find the single peaks that aren't in lrbest
+#find the single peaks that aren't in lrbest -> there shouldn't be any...
+temp <-meandist$ID[!(meandist$ID %in% lrbest$ID)] 
 lrbest2 <- meandist[!meandist$ID %in% temp, ]  #remove these encounters from meandist to add in as col of lrbest 
 lrbestyay <-cbind(lrbest2[2], lrbest)
 
@@ -68,58 +85,66 @@ lrbestyay <-cbind(lrbest2[2], lrbest)
 ##### Bathymetry #### 
 plot(lrbestyay$m, abs(lrbestyay$diffbath), main="bathymetric depth", xlab = 'Mean Distance (km)', ylab = 'Diff in Bathymetry (m)')
 hist(abs(lrbestyay$diffbath), breaks = 10, main='Distribution of Bathy Differences')
-#pull out data with diffs > 500 m
-diffbath <- filter(lrbestyay, abs(lrbestyay$diffbath) > 500 & diffbath !='NA') # %>% na.exclude  # lrbestyay[which(abs(lrbestyay$diffbath)) > 1000, ]
+
+#pull out outliers with diffs in bath > 1000 m, not 500m like before
+diffbath <- filter(lrbestyay, abs(lrbestyay$diffbath) > 1000 & diffbath !='NA') # %>% na.exclude  #not 500m diff lrbestyay[which(abs(lrbestyay$diffbath)) > 1000, ]
+#make vector of IDs for bath outliers
 bathID <-diffbath$ID
 diffbathdf <- LRbest[LRbest$ID %in% bathID,] #pull out the rows in LRbest that match (are in) the IDs in bathID
+
+#to look at the depth distribution, need to randomly select A or B values from encs that are not outliers
+#remove outliers in bath, so remove the encounters from LRbest that appear in bathID
+bathdf <- LRbest[!(LRbest$ID %in% bathID)]
+hist(bathdf$bath)
+which.max(bathdf$bath)
 
 ggplot(diffbathdf, aes(pdist, diffbath, color=ID))+
   geom_point(size=3)# +
 
 #test to determine which distribution the data follow
 require(EnvStats)
-gofTest(abs(sw.locvis$bath), test = 'sw', distribution = 'weibull')  
+gofTest(abs(bathdf$bath), test = 'sw', distribution = 'gamma')  
   
   
-#old
-#show distribution of depths from localized and visual data
-hist(sw.locvis$bath, prob=1, breaks = 20)
-lines(density(sw.locvis$bath), col=2)
-bath_sqrt = sqrt(abs(sw.locvis$bath))
-hist(bath_sqrt, breaks = 20)
-
-hist(SwEnvData_scale$bath, prob=1, breaks = 20)
-lines(density(sw.locvis$bath), col=2)
-bath_log = log((SwEnvData_scale$bath))
-hist(bath_log, breaks = 20)
-library(rcompanion)
-
-plotDensityHistogram(SwEnvData_scale$bath)
-qqnorm(SwEnvData_scale$bath)
-qqline(SwEnvData_scale$bath, col='red')
-
-bathsd = sd(sw.locvis$bath)
-den = density(sw.locvis$bath)
-
-bath_d <- ecdf(sw.locvis$bath)
-summary(bath_d)
-plot(bath_d)
-1-bath_d(-1325)
-1-bath_d(-3422)
-
-
-dnorm(-1325, mean = mean(den$x), sd = bathsd)
-dnorm(-3422, mean = mean(den$x), sd = bathsd)
-
-
-#compare left and right values?
-
-hist(LRbestA$bath, col=rgb(1,0,0,0.5), prob = 1, main='A is red, B is blue', breaks=15)
-hist(LRbestB$bath, add=TRUE, col=rgb(0,0,1,0.5), prob = 1, breaks=15)
-lines(density(LRbestA$bath), col=2)
-lines(density(LRbestB$bath), col=4)
-bath_dA <- ecdf(LRbestA$bath)
-bath_dB <- ecdf(LRbestB$bath)
+# #old
+# #show distribution of depths from localized and visual data
+# hist(sw.locvis$bath, prob=1, breaks = 20)
+# lines(density(sw.locvis$bath), col=2)
+# bath_sqrt = sqrt(abs(sw.locvis$bath))
+# hist(bath_sqrt, breaks = 20)
+# 
+# hist(SwEnvData_scale$bath, prob=1, breaks = 20)
+# lines(density(sw.locvis$bath), col=2)
+# bath_log = log((SwEnvData_scale$bath))
+# hist(bath_log, breaks = 20)
+# library(rcompanion)
+# 
+# plotDensityHistogram(SwEnvData_scale$bath)
+# qqnorm(SwEnvData_scale$bath)
+# qqline(SwEnvData_scale$bath, col='red')
+# 
+# bathsd = sd(sw.locvis$bath)
+# den = density(sw.locvis$bath)
+# 
+# bath_d <- ecdf(sw.locvis$bath)
+# summary(bath_d)
+# plot(bath_d)
+# 1-bath_d(-1325)
+# 1-bath_d(-3422)
+# 
+# 
+# dnorm(-1325, mean = mean(den$x), sd = bathsd)
+# dnorm(-3422, mean = mean(den$x), sd = bathsd)
+# 
+# 
+# #compare left and right values?
+# 
+# hist(LRbestA$bath, col=rgb(1,0,0,0.5), prob = 1, main='A is red, B is blue', breaks=15)
+# hist(LRbestB$bath, add=TRUE, col=rgb(0,0,1,0.5), prob = 1, breaks=15)
+# lines(density(LRbestA$bath), col=2)
+# lines(density(LRbestB$bath), col=4)
+# bath_dA <- ecdf(LRbestA$bath)
+# bath_dB <- ecdf(LRbestB$bath)
 
 
 
@@ -153,36 +178,54 @@ bath_dB <- ecdf(LRbestB$bath)
 
 ##### Slope #####
 plot(lrbestyay$m, abs(lrbestyay$diffslp), main = 'slope')
+
+#Filter for differences in slope > 10
 diffslp <- filter(LRbest, abs(LRbest$diffslp) > 10) 
 slpID <- diffslp$ID
 diffslpdf <- LRbest[LRbest$ID %in% slpID,] #pull out the rows in LRbest that match (are in) db
+#see outliers on map
 plot(hawaii, land=TRUE, lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 text(diffslpdf$lon, diffslpdf$lat, labels=round(diffslpdf$slp_deg,2), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(diffslpdf$lon, diffslpdf$lat, col='magenta', pch = 19)
 
+#look at slopes without outliers
+slpdf <- LRbest[!(LRbest$ID %in% slpID)]
+hist(slpdf$slp_deg)
+which.max(slpdf$slp_deg)
+
+
+
 ##### Aspect ####
+#IGNORING FOR NOW
 hist(LRbest$asp_deg, breaks = 10, main='Distribution of Aspect')
 plot(lrbestyay$m, abs(lrbestyay$diffasp), main = 'Diff in Aspect over Distance')
-# diffasp <- filter(LRbest, abs(LRbest$diffasp) > ??) 
+# diffasp <- filter(LRbest, abs(LRbest$diffasp) > ??)
 # aspID <- diffasp$ID
 # diffaspdf <- LRbest[LRbest$ID %in% aspID,] #pull out 
 
+#WHAT ABOUT RADIANS FOR ASPECT??
+# hist(LRbest$asp_rad, breaks = 10, main='Distribution of Aspect')
+# plot(lrbestyay$m, abs(lrbestyay$diffasp2), main = 'Diff in Aspect over Distance')
 
-plot(lrbestyay$m, sw.bestB$d2land_km)
-plot(lrbestyay$m, sw.bestB$d2smt_km)
-mdl <- lm(sw.bestA2$d2smt_km ~ sw.bestB$d2smt_km)
-pval = round(summary(mdl)$coefficients[2,4],5)
-r2 = summary(mdl)$adj.r.squared
+#example of linear model, not sure why this is here...
+# plot(lrbestyay$m, sw.bestB$d2land_km)
+# plot(lrbestyay$m, sw.bestB$d2smt_km)
+# mdl <- lm(sw.bestA2$d2smt_km ~ sw.bestB$d2smt_km)
+# pval = round(summary(mdl)$coefficients[2,4],5)
+# r2 = summary(mdl)$adj.r.squared
 
 ##### Wave Power ####
 plot(lrbestyay$m, abs(lrbestyay$diffwp), main = 'wave power')
 diffwp <- filter(LRbest, abs(LRbest$diffwp) > 100) 
 wpID <- diffwp$ID
 diffwpdf <- LRbest[LRbest$ID %in% wpID,] #pull out the rows in LRbest that match (are in) db
+
 plot(hawaii, lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 text(diffwpdf$lon, diffwpdf$lat, labels=round(diffwpdf$wavepow,2), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(diffwpdf$lon, diffwpdf$lat, col='magenta', pch = 19)
 
+wpdf<- LRbest[!(LRbest$ID %in% wpID)]
+hist(wpdf$wavepow)
 
 ##### EKE ####
 
@@ -190,29 +233,38 @@ plot(lrbestyay$m, abs(lrbestyay$diffeke), main = 'diff in ssh sd')
 diffeke <- filter(LRbest, abs(LRbest$diffeke) > 0.0005) 
 ekeID <- diffeke$ID
 diffekedf <- LRbest[LRbest$ID %in% ekeID,] #pull out the rows in LRbest that match (are in) db
+
 plot(hawaii,lwd=.5, las=1, main='EKE') #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 text(diffekedf$lon, diffekedf$lat, labels=round(diffekedf$d2smt,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(diffekedf$lon, diffekedf$lat, col='magenta', pch = 19)
 
+#look at the non-outlier ekes
+ekedf<- LRbest[!(LRbest$ID %in% ekeID)]
+hist(ekedf$eke, breaks=10)
 
 ##### SSHsd ####
 plot(lrbestyay$m, abs(lrbestyay$diffsshsd), main = 'diff in ssh sd')
-diffsshsd <- filter(LRbest, abs(LRbest$diffsshsd) > 0.003) 
+diffsshsd <- filter(LRbest, abs(LRbest$diffsshsd) > 0.0035) 
 sshsdID <- diffsshsd$ID
 diffsshsddf <- LRbest[LRbest$ID %in% sshsdID,] #pull out the rows in LRbest that match (are in) db
+
 plot(hawaii,lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 text(diffsshsddf$lon, diffsshsddf$lat, labels=round(diffsshsddf$sshsd,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(diffsshsddf$lon, diffsshsddf$lat, col='magenta', pch = 19)
 
 diffsshsddf$lon2 <- ifelse(diffsshsddf$lon<0, diffsshsddf$lon+360, diffsshsddf$lon)
 
+#look at the non-outlier sshsd
+sshsddf<- LRbest[!(LRbest$ID %in% sshsdID)]
+hist(sshsddf$sshsd)
 
 ##### Dist 2 Seamount ####
 
-plot(lrbestyay$m, abs(lrbestyay$diffdmst), main = 'diff in ssh sd')
-diffdsmt <- filter(LRbest, abs(LRbest$diffdmst) > 15) 
+plot(lrbestyay$m, abs(lrbestyay$diffdmst), main = 'diff in dist to seamounts')
+diffdsmt <- filter(LRbest, abs(LRbest$diffdmst) > 15) #km
 d2smtID <- diffdsmt$ID
 diffd2smtdf <- LRbest[LRbest$ID %in% d2smtID,] #pull out the rows in LRbest that match (are in) db
+
 plot(hawaii,lwd=.5, las=1, main='Dist 2 Seamounts') #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 text(diffd2smtdf$lon, diffd2smtdf$lat, labels=round(diffd2smtdf$d2smt,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(diffd2smtdf$lon, diffd2smtdf$lat, col='magenta', pch = 19)
@@ -221,13 +273,15 @@ points(diffd2smtdf$lon, diffd2smtdf$lat, col='magenta', pch = 19)
 
 
 #Explore outliers
+'DIFFVARS' is the KEY VARIABLE. The rest was used to identify how to choose between the outlier encs where the peaks had different values for some of the variables. Ultimately, after YB looked through each, choosing the deepest peak made the most sense.
 ```{r}
+
 #find which encounters are outliers and if they overlap across different variables
 diffvars <- as.data.frame(cbind(bathID,d2smtID, ekeID, sshsdID,slpID, wpID))
+#make vector of IDs that are outliers
+outliers<-as.character(unique(as.vector(as.matrix(diffvars))))
 
-#try to find IDs that repeat between columns based on the bath outliers
-diffvars[diffvars$bathID %in% diffvars$d2smtID, 2]  #
-
+#try to find IDs that overlap between variables. Start with the bath outliers
 #between bathymetry and distance to seamount
 bath_d2smt = data.frame(bath_d2smt=unique(diffvars$bathID[match(diffvars$d2smtID, diffvars$bathID )]))  #
 bath_d2smt$row <- row.names(bath_d2smt)
@@ -251,37 +305,125 @@ merge3<- merge(merge2, bath_slp, by = "row", all=TRUE)
 merge4<- merge(merge3, bath_wp, by = "row", all=TRUE)
 
 LRbest <- LRbest[, c(1,2,4,3,5:36)]
-look <- filter(LRbest, LRbest$ID == '1604_57_999')
+look <- filter(LRbest, ID %in% d2smtID)
 plot(hawaii,lwd=.5, las=1) #bpal=list(c(min(dat),0,blues),c(0,max(dat),greys))
 # text(A20_1303$lon, A20_1303$lat, labels=round(A20_1303$sshsd,5), col='blue')#pch=21,col="yellow",bg=col2alpha("yellow",.9),cex=1.2)
 points(look$lon, look$lat, col='magenta', pch = 19)
 
 #between d2smt and variables
-d2smt_eke = data.frame(d2smt_eke=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$ekeID)]))  #
+d2smt_eke = data.frame(d2smt_eke=unique(diffvars$d2smtID[match(diffvars$ekeID, diffvars$d2smtID)]))  #
 d2smt_eke$row <- row.names(d2smt_eke)
-d2smt_sshsd = data.frame(d2smt_sshsd=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$sshsdID)]))  #
+d2smt_sshsd = data.frame(d2smt_sshsd=unique(diffvars$d2smtID[match(diffvars$sshsdID, diffvars$d2smtID)]))  #
 d2smt_sshsd$row <- row.names(d2smt_sshsd)
-d2smt_slp = data.frame(d2smt_slp=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$slpID)]))  #
+d2smt_slp = data.frame(d2smt_slp=unique(diffvars$d2smtID[match(diffvars$slpID, diffvars$d2smtID )]))  #
 d2smt_slp$row <- row.names(d2smt_slp)
-d2smt_wp = data.frame(d2smt_wp=unique(diffvars$d2smtID[match(diffvars$d2smtID, diffvars$wpID)]))  #
+d2smt_wp = data.frame(d2smt_wp=unique(diffvars$d2smtID[match(diffvars$wpID, diffvars$d2smtID )]))  #
 d2smt_wp$row <- row.names(d2smt_wp)
 
 merge5<- merge(d2smt_eke, d2smt_sshsd, by = "row", all=TRUE)
 merge6<- merge(merge5, d2smt_slp, by = "row", all=TRUE)
 merge7<- merge(merge6, d2smt_wp, by = "row", all=TRUE)
+merge7b<- merge(merge4, merge7, by = "row", all=TRUE)
 
 #between eke and variables
-eke_sshsd = data.frame(eke_sshsd=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$sshsdID)]))  #
-eke_slp = data.frame(eke_slp=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$slpID)]))  #
-eke_wp = data.frame(eke_wp=unique(diffvars$ekeID[match(diffvars$ekeID, diffvars$wpID)]))  #
+eke_sshsd = data.frame(eke_sshsd=unique(diffvars$ekeID[match(diffvars$sshsdID, diffvars$ekeID )]))  #
+eke_sshsd$row <- row.names(eke_sshsd)
+eke_slp = data.frame(eke_slp=unique(diffvars$ekeID[match(diffvars$slpID, diffvars$ekeID )]))  #
+eke_slp$row <- row.names(eke_slp)
+eke_wp = data.frame(eke_wp=unique(diffvars$ekeID[match(diffvars$wpID, diffvars$ekeID )]))  #
+eke_wp$row <- row.names(eke_wp)
+
+merge8<- merge(eke_sshsd, eke_slp, by = "row", all=TRUE)
+merge9<- merge(merge8, eke_wp, by = "row", all=TRUE)
+merge9b<- merge(merge9, merge7b, by = "row", all=TRUE)
 
 #between sshsd and variables
-sshsd_slp = data.frame(sshsd_slp=unique(diffvars$sshsdID[match(diffvars$sshsdID, diffvars$slpID)]))  #
-sshsd_wp = data.frame(sshsd_wp=unique(diffvars$sshsdID[match(diffvars$sshsdID, diffvars$wpID)]))  #
+sshsd_slp = data.frame(sshsd_slp=unique(diffvars$sshsdID[match(diffvars$slpID, diffvars$sshsdID )]))  #
+sshsd_slp$row <- row.names(sshsd_slp)
+sshsd_wp = data.frame(sshsd_wp=unique(diffvars$sshsdID[match(diffvars$wpID, diffvars$sshsdID )]))  #
+sshsd_wp$row <- row.names(sshsd_wp)
+merge10<- merge(sshsd_slp, sshsd_wp, by = "row", all=TRUE)
+merge10b<- merge(merge9b, merge10, by = "row", all=TRUE)
 
-#between slp and wp
-slp_wp = data.frame(slp_wp=unique(diffvars$slpID[match(diffvars$slpID, diffvars$wpID)]))  #
+#between slp and wp -> NA
+slp_wp = data.frame(slp_wp=unique(diffvars$slpID[match(diffvars$wpID, diffvars$slpID )]))  #
 
+
+```
+
+
+
+#Pare things down a bit
+```{r}
+#find the enc IDs that are unique and make into one column so it's easier to create a kml file
+#one line of code! was using union() between every pair of columns, ugh, no bueno.
+#https://stackoverflow.com/questions/31728188/how-to-extract-unique-elements-from-a-data-frame-in-r
+
+#these encs overlap between some of the env variables
+lookID<-as.character(unique(as.vector(as.matrix(merge10b))))
+#these are ALL of the encs that are outliers
+lookall <-as.character(unique(as.vector(as.matrix(diffvars))))
+#remove the outlier encounters from diffvars that are the overlapping outlier ones in lookID for each variable
+# lookall2 <- lookall[!(lookall %in% lookID)]
+looksmt <- diffvars$d2smtID[!(diffvars$d2smtID %in% lookID)]
+lookeke <- diffvars$ekeID[!(diffvars$ekeID %in% lookID)]
+looksshsd <- diffvars$sshsdID[!(diffvars$sshsdID %in% lookID)]
+lookslp <- diffvars$slpID[!(diffvars$slpID %in% lookID)]
+lookwp <- diffvars$wpID[!(diffvars$wpID %in% lookID)]
+
+
+iwantd2smt <- LRbest[LRbest$ID %in% looksmt]
+iwanteke <- LRbest[LRbest$ID %in% lookeke]
+iwantsshsd <- LRbest[LRbest$ID %in% looksshsd]
+iwantslp <- LRbest[LRbest$ID %in% lookslp]
+iwantwp <- LRbest[LRbest$ID %in% lookwp]
+
+#look just at the overlapping encs
+lookatme <- filter(LRbest, ID %in% look[6:15])
+lookatme <- lookatme[,c(1:5, 28:36)]
+
+# write.csv(iwantd2smt, "SWoutlier_smt.csv", row.names = F)
+
+
+
+```
+
+#Select peak A or B, Combine with other data
+Choose peak with deepest bathymetry for all localized encounters, including the outliers. If the non-outliers need to be selected more randomly, this is set up so the outliers are kept separate.
+Then combine with the sightings and unlocalized encounters.
+
+```{r}
+
+#LRbest already filtered for the 'best' peak
+#pull out encs of outliers in LRbest, then select peak with deepest bathymetry
+outliersdf <- filter(LRbest, ID %in% outliers)
+LRout <- outliersdf %>% group_by(ID) %>% slice_min(bath)
+
+inliersdf <- filter(LRbest, !(ID %in% outliers))
+LRin <- inliersdf %>% group_by(ID) %>% slice_min(bath)
+
+#combine encs that had outliers and those that didn't have outliers
+sw.locFinal <- as.data.frame(rbind(LRin, LRout))
+sw.locFinal$survey <- as.numeric(substr(sw.locFinal$ID, start=1, stop=4))
+sw.locFinal$lon2 = ifelse(sw.locFinal$lon <1, sw.locFinal$lon + 360, sw.locFinal$lon) 
+nrow(sw.locFinal) #should be 59
+
+#just take a look at some vars
+# hist(LRselect$bath)
+# hist(LRselect$d2smt_km)
+# hist(LRselect$temp600C)
+
+#plot the locations to see if they overlap in space
+ggplot(sw.locFinal, aes(x=lon2, y=lat, col=as.factor(survey)) ) +
+  geom_point()
+
+#combine with vis and unloc encs
+sw.visunloc <- filter(SwEnvData, loc == 0)
+sw.visunloc$UTC <- as.character(sw.visunloc$UTC)
+sw.visunloc$UTC <- mdy_hm(sw.visunloc$UTC)
+
+SwEnvFinal <- bind_rows(sw.locFinal, sw.visunloc)
+nrow(SwEnvFinal) # should be 208
 
 ```
 

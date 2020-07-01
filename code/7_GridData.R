@@ -35,7 +35,7 @@ dsm <- Distance::ds(pmDets, key='hr')
 
 #filter for just 1706 to test things
 pmDetsub <- filter(pmDets, survey == 1706, loc == 1 | loc == 0 & sid < 999 ) # localized encs and sightings
-
+# pmDetsub2 <- filter(pmDetsub, sid == 44)
 
 gridEffort10 <- doAllGrid(gps = gpsAll,
                      bounds = NULL,
@@ -54,5 +54,47 @@ gridEffort10 <- doAllGrid(gps = gpsAll,
 # detections are red dots, amount of effort is shaded in gray, but for a big grid you wont really be able to see the shading
 plotGridResult(gridEffort10)
 
+#non-function form of plotting to plot one detection
+x <- gridEffort10
+actualArea <- as.numeric(st_area(x$grid))
+coveragePct <- round(x$effort / actualArea, 3)
+coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
+plot(x$grid, col = gray(1 - coveragePct, alpha = .9))
+lines(x=x$gps$Longitude, y=x$gps$Latitude, col='blue')
+points(x=206.7996, y=18.43524, col='red', pch = 16) #point for A121.S44
+ 
 
-saveRDS(gridEffort10, file = paste0(here::here('output'), '/', 'gridEffort10km.rda'))
+saveRDS(gridEffort10, file = paste0(here::here('output'), '/', 'gridEffort_1760_10km.rda'))
+
+
+
+#find times for grid cells with effort -> now a function, gridTime :) june 30, 2020
+effCells <- which(gridEffort10$effort>0)
+dets <- gridEffort10$detections$gridIndex
+centroid = NULL
+for (eff in effCells[1:2]){
+  gridTest<-gridEffort10$grid[[eff]]
+  ct <- st_centroid(gridTest)  #get centroid lat lon
+  ct_lonlat <- which(abs(gpsAll$Longitude-ct[1]) == min(abs(gpsAll$Longitude-ct[1])) | #index of closest matches to lon lat
+                       abs(gpsAll$Latitude-ct[2]) == min(abs(gpsAll$Latitude-ct[2])))
+  ct_time <- ifelse(gpsAll[ct_lonlat[1],]$UTC-gpsAll[ct_lonlat[2],]$UTC < 1440, gpsAll[ct_lonlat[1],]$UTC, NA)
+  if (ct_time > 0){
+    ct_time<-as.POSIXct(ct_time, tz='GMT', origin = '1970-01-01')
+  } else {
+    ct_time
+  }
+  
+  if (eff %in% dets == TRUE){
+    pa = 1
+  } else {
+    pa = 0
+  }
+  
+  ctdf <- data.frame(effCells = eff, UTC=ct_time, lon=ct[1], lat=ct[2], pa = pa)
+  
+  centroid <- rbind(centroid, ctdf)
+}
+
+
+which(abs(gpsAll$Longitude-ct[1]) == min(abs(gpsAll$Longitude-ct[1])) | #index of closest matches to lon lat
+        abs(gpsAll$Latitude-ct[2]) == min(abs(gpsAll$Latitude-ct[2])))
