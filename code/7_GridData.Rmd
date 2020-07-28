@@ -11,10 +11,14 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
-Load functions
+Load functions and parameters
 ```{r}
 
-source('./code/FromTaiki/gridFunctions.R')
+source('./code/FromTaiki/gridFunctions_v2.R')
+
+
+surveynum = 1303
+
 
 ```
 
@@ -24,7 +28,7 @@ source('./code/FromTaiki/gridFunctions.R')
 # 1) First read in gps, then you need to convert longitudes to 0-360,
 # convert UTC to POSIXct format, and create a column called "effort" that is TRUE or FALSE
 # Column names needed: Longitude, Latitude, UTC, effort
-gpsAll <- read.csv('./tests/straightPathWeffort_1706.csv', stringsAsFactors = FALSE) #read.csv('./tests/SpermWhale_1706_0716_effort.csv', stringsAsFactors = FALSE)
+gpsAll <- read.csv(paste0('./output/straightPath results/straightPathWeffort_', surveynum, '.csv'), stringsAsFactors = FALSE) #read.csv('./tests/SpermWhale_1706_0716_effort.csv', stringsAsFactors = FALSE)
 # gpsAll <- gpsAll %>% mutate_if(is.character, str_trim) #white space after join.veffort!?!?
 gpsAll$effort <- gpsAll$straight == TRUE & gpsAll$join.aeffort == "on" # & gpsAll$join.veffort =="on"
 gpsAll$Longitude <- ifelse(gpsAll$Longitude <= 0, gpsAll$Longitude + 360, gpsAll$Longitude)
@@ -32,25 +36,32 @@ gpsAll$UTC <- lubridate::ymd_hms(gpsAll$UTC)
 ```
 
 #Load sperm whale detection data
+Includes localized acoustic encounters and sightings with acoustics only.
 ```{r}
 # 2) Read in detections, similar to above convert column names to Longitude, Latitude, UTC,
 # and "distance" if you need to create a detection function using Distance package
 # Longitude must be matching 0-360 like above
 # pmDets <- read.csv('./tests/SpermWhale_1706_BEST_detections.csv', stringsAsFactors = FALSE)
-pmDets <- filter(SwEnvFinal, loc == 1 | loc == 0 & sid < 999) # localized encs and sightings
+# pmDets <- read.csv('./output/SpermiesWithEnvData_20200531.csv', stringsAsFactors = FALSE)
+pmDets <- read.csv('./output/SpermiesFinalLR_20200708.csv', stringsAsFactors = FALSE)
+# pmDets <- filter(SwEnvFinal, loc == 1 | loc == 0 & sid < 999) # localized encs and sightings
 pmDets <- rename(pmDets, Longitude = lon, Latitude=lat, distance = pdist)
 pmDets$Longitude <- ifelse(pmDets$Longitude <= 0, pmDets$Longitude + 360, pmDets$Longitude)
 pmDets$UTC <- lubridate::ymd_hms(pmDets$UTC)
 pmDets$distance <- abs(pmDets$distance)*1000
 
-#pmDetsAc <- filter(pmDets, loc==1)#, distance < 15)
+pmDets <- filter(pmDets, type == 'best' | sid < 999, itrk==1)
+
+pmDetsAc <- filter(pmDets, sid == 999)
+
 ```
 
 #Make detection function
 ```{r}
 # 3) fit a detection function if you need one
-dsm <- Distance::ds(pmDets, key='hr')
-# dsm <- Distance::ds(pmDetsAc, key='unif')
+# dsm <- Distance::ds(pmDets, key='hr')
+dsmAc <- Distance::ds(pmDetsAc, key='hr')
+plot(dsmAc)
 ```
 
 #Run gridding code
@@ -61,14 +72,14 @@ dsm <- Distance::ds(pmDets, key='hr')
 # It will ask you what pixel size you want  (this is the grid size), in the future you can specify this when you call it
 
 #filter for just 1706 to test things
-pmDetsub <- filter(pmDets, survey == 1706, loc == 1 | loc == 0 & sid < 999 ) # localized encs and sightings
+pmDetsub <- filter(pmDets, survey == surveynum, loc == 1 | loc == 0 & sid < 999 ) # localized encs and sightings
 # pmDetsub2 <- filter(pmDetsub, sid == 44)
 
-gridEffort10 <- doAllGrid(gps = gpsAll,
+gridEffort <- doAllGrid(gps = gpsAll,
                      bounds = NULL,
                      dets = pmDetsub,
-                     trunc_m = 15e3, #METERS
-                     dsmodel = dsm, #NULL or dsm 
+                     trunc_m = 20e3, #METERS
+                     dsmodel = dsmAc, #NULL or dsm 
                      pixel = NULL,
                      grid = NULL,
                      plot = F)
@@ -78,26 +89,49 @@ gridEffort10 <- doAllGrid(gps = gpsAll,
 # cell - actualArea is mostly there as a reference point for sanity check, prob not used for much)
 ```
 
-#Plot
+#Check that all detections have effort
+Cannot find the centroid of cells that have zero effort
+Make changes to any detections that have zero effort for whatever reason.
 ```{r}
-# Theres also a plotty function, but it will look pretty messy for all your data. Trackline is (roughly) in blue,
-# detections are red dots, amount of effort is shaded in gray, but for a big grid you wont really be able to see the shading
-plotGridResult(gridEffort10)
+#check that all detections are included as expected
+pmDetsub$ID %in% gridEffort$detections$ID
 
-#non-function form of plotting to plot one detection
-x <- gridEffort10
-actualArea <- as.numeric(st_area(x$grid))
-coveragePct <- round(x$effort / actualArea, 3)
-coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
-plot(x$grid, col = gray(1 - coveragePct, alpha = .9))
-lines(x=x$gps$Longitude, y=x$gps$Latitude, col='blue')
-points(x=centroidAll$lon, y=centroidAll$lat, col='red', pch = 16, cex=0.5 ) #point for A121.S44
+#which detections have effortArea = 0?
+(effdets <- which(gridEffort$detections$effortArea==0)) #output is the index
+(effchg <- gridEffort$detections[effdets,])
+
+gridmap <- attr(gridEffort$grid, 'map')
+#Do what you need to for figuring out which cell it is and which one it can be replaced with
+# Have to change values in columns 27-29, gridIndex, effortArea, actualArea
+
+#For 1706, A54 falls right on a grid line so I had to find the cells around it and choose the closest one manually. 15053 is the closest cell with effort.
+# gridInd <- 15053
+# effArea <- gridEffort$effort$area[gridInd]
+# actArea <- actualArea[gridInd]
+# #change values for these columns while keeping everything else the same
+# effchg <- effchg %>% mutate(gridIndex = gridInd, effortArea=effArea, actualArea=actArea)
+# 
+# #remove old effchg and replace with new row
+# gridEffort$detections<-gridEffort$detections[-effdets,]
+# gridEffort$detections <- rbind(gridEffort$detections, effchg)
+
+# 5km - 1303: detection missing effort in cell
+gridInd = effchg$gridIndex
+effArea <- gridEffort$effort$area[gridInd]
+
+gridmap[gridInd,]  #S,E,N,W -> below, right, above, left
+gridEffort$effort$area[gridmap[gridInd,]]
+gridEffort$grid[gridmap[gridInd,]]
+
+list.filter(gridEffort, as.numeric(grid) == 191.4586)#  , 24.56
+
 ```
 
-#Save grid data
+
+#Save/Read grid data
 ```{r}
-saveRDS(gridEffort10, file = paste0(here::here('output'), '/', 'gridEffort_1706_10km.rda'))
-gridEffort10 <- readRDS(file = paste0(here::here('output'), '/', 'gridEffort_1706_10km.rda'))
+saveRDS(gridEffort, file = paste0(here::here('output'), '/', 'gridEffort', surveynum, '_5km.rda'))
+# gridEffort <- readRDS(file = paste0(here::here('output'), '/', 'gridEffort', surveynum, '_10km.rda'))
 ```
 
 
@@ -105,8 +139,103 @@ gridEffort10 <- readRDS(file = paste0(here::here('output'), '/', 'gridEffort_170
 All the cells with effort > 0 represent presences AND absences.
 Presences can be filtered using detections$gridIndex 
 ```{r}
+#function calculates the difference between start and end times in minutes
+centroidAll <- gridCentroid(gridEffort, gpsAll)
 
-centroidAll <- gridTime(gridEffort10, gpsAll)
+#do another check to make sure all detections have centroid locations
+(all_prz <- filter(centroidAll, pa==1))
+(id_not <- which(!(gridEffort$detections$gridIndex %in% all_prz$effCells == TRUE)))
+(not_det <- gridEffort$detections[id_not,]) #this is hopefully empty
+```
+
+```{r}
+#### PRESENCE DATA ####
+# `dbl_prz` and `dbl_det` should have the same number of rows
+#Need to know which time (start or end) is associated with a detection if pa = 1 and diff_mins > 1440 (mins in a day)
+dbl_prz <- filter(centroidAll, abs(diff_mins) > 1440 & pa == 1)
+
+#In cells with PRESENCE, which detections occur in cells that were passed > 1 time
+dbl_idx <- which(gridEffort$detections$gridIndex %in% dbl_prz$effCells == TRUE)
+dbl_det <- gridEffort$detections[dbl_idx,]
+dbl_det <- dbl_det[order(dbl_det$gridIndex),] #detections in order of gridIndex to match dbl_prz
+
+## For some cells with pa = 1, the start and end times are not within a day of the detection time for the same location (cell centroid). The detection times are compared to the start and end times. Those times that differ by less than a day are used 
+idt1 = which(abs(difftime(dbl_det$UTC, dbl_prz$start, units = "mins")) < 1440) #find rows where time difference btwn detection and start is less than a day
+idt2 = which(abs(difftime(dbl_det$UTC, dbl_prz$end, units = "mins")) < 1440)   #find rows where time difference btwn detection and end is less than a day
+idt3 = which(abs(difftime(dbl_det$UTC, dbl_prz$start, units = 'mins')) > 1440 & abs(difftime(dbl_det$UTC, dbl_prz$end, units = 'mins')) > 1440) #find rows where time difference btwn detection and both start and end is more than a day
+
+gr8end <- dplyr::select(dbl_prz[idt1,], `UTC`= end, effCells, EffArea, diff_mins, lon, lat, pa) #df for end times that occur on diff day than detection
+gr8start <- dplyr::select(dbl_prz[idt2,], `UTC`= start, effCells, EffArea, diff_mins, lon, lat, pa) #df for start times that occur on diff day than detection
+# Take start and end times when both occur on different day than the detection and create a row for them in a df
+gr8both1 <- dplyr::select(dbl_prz[idt3,], `UTC`= end, effCells, EffArea, diff_mins, lon, lat, pa) 
+gr8both2 <- dplyr::select(dbl_prz[idt3,], `UTC`= start, effCells, EffArea, diff_mins, lon, lat, pa)
+GR8all <- rbind(gr8end, gr8start, gr8both1, gr8both2)
+GR8all$pa <-0 #these are not presences because they are the times that occur on a different day than the detection
+
+# take the actual detection times and match them with the centroid lat lon. 
+dbl_det1 <- data.frame(dplyr::select(dbl_det[idt1,], UTC), dplyr::select(dbl_prz[idt1,], effCells, EffArea, diff_mins, lon, lat, pa))
+dbl_det2 <- data.frame(dplyr::select(dbl_det[idt2,], UTC), dplyr::select(dbl_prz[idt2,], effCells, EffArea, diff_mins, lon, lat, pa))
+dbl_det3 <- data.frame(dplyr::select(dbl_det[idt3,], UTC), dplyr::select(dbl_prz[idt3,], effCells, EffArea, diff_mins, lon, lat, pa))
+DBL_prz <- rbind(dbl_det1, dbl_det2, dbl_det3)   ## create df of centroids for all presences
+
+#### ABSENCE DATA ####
+#In cells with ABSENCE, manipulate to have both times in one column
+dbl_abz <- filter(centroidAll, abs(diff_mins) > 3200 & pa == 0) #double effort within 2-3 days? Threshold based on grid data
+dbl_start <- dplyr::select(dbl_abz, `UTC`=start)#first time
+dbl_end   <- dplyr::select(dbl_abz, `UTC`=end)  #second time
+dbl_else <- dplyr::select(dbl_abz, -start, -end)#the rest of the data
+dbl_startdf <- data.frame(dbl_start, dbl_else)   #combine first time with the rest of the data
+dbl_enddf <- data.frame(dbl_end, dbl_else)       #combine second time with the rest of the data
+DBL_abz <- rbind(dbl_startdf, dbl_enddf, GR8all) ## create df of centroids for all absences that had double effort
+
+
+#Configure cells with single effort to have same format as double effort to combine them
+sgl_abz <- filter(centroidAll, abs(diff_mins) <= 3200 & pa == 0) # all times are within 2-3 days, which is fine bc datasets are monthly
+SGL_abz <- dplyr::select(sgl_abz, `UTC` = start, everything(), -end)
+
+sgl_prz <- filter(centroidAll, abs(diff_mins) <= 1440 & pa == 1)
+SGL_prz <- dplyr::select(sgl_prz, `UTC` = start, everything(), -end)
+
+
+####COMBINE ALL!!! ####
+
+ALLcentroids <- rbind(DBL_prz, SGL_prz, DBL_abz, SGL_abz)
+ALLcentroids$survey <- surveynum
+nrow(filter(ALLcentroids, pa == 1)) #should equal number of detections
+
+#SAVE IT!
+saveRDS(ALLcentroids, file = paste0(here::here('output'), '/', 'centroids', surveynum, '_5km.rda'))
+
 
 ```
 
+#Plot
+```{r}
+# Theres also a plotty function, but it will look pretty messy for all your data. Trackline is (roughly) in blue,
+# detections are red dots, amount of effort is shaded in gray, but for a big grid you wont really be able to see the shading
+plotGridResult(gridEffort)
+
+#non-function form of plotting to plot one detection or other data points
+x <- gridEffort
+actualArea <- as.numeric(st_area(x$grid))
+coveragePct <- round(x$effort$area / actualArea, 3)
+coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
+plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.2)
+points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=16, cex = 0.1)
+# points(x=centroidAll$lon, y=centroidAll$lat, col='red', pch = 16, cex=0.5 ) #point for A121.S44
+#203.4318	21.36744	three times through here?
+# points(x=203.4318, y=21.36744, col='red', pch = 0, cex=0.2, lwd = 0.2 ) 
+# points(x=dbl_eff2$lon, y=dbl_eff2$lat, col='red', pch = 0, cex=0.2, lwd = 0.2 ) 
+# points(x=pmDetsub$lon2, y=pmDetsub$Latitude, col='green', pch=1, cex=0.2, lwd=0.2)
+# points(effchg$lon2, effchg$lat, col='red', pch = 0, cex=0.2, lwd = 0.2 )
+# points(202.0030714, 22.11072601,col='blue', pch = 0, cex=0.2, lwd = 0.2 )
+# points(201.8474, 22.30299,col='green', pch = 16, cex=0.2, lwd = 0.2 )
+points(191.4586, 24.56,col='darkorange', pch = 16, cex=0.8, lwd = 0.2 ) #dot
+# points(202.0274, 22.30299,col='darkmagenta', pch = 16, cex=0.2, lwd = 0.2 )
+# points(201.7574, 22.30299,col='deepskyblue', pch = 16, cex=0.2, lwd = 0.2 )
+# points(201.9824, 22.34799,col='darkorange', pch = 0, cex=0.2, lwd = 0.2 ) #15053 centroid ->CHOOSE THIS ONE
+# points(202.0724, 22.34799,col='darkmagenta', pch = 0, cex=0.2, lwd = 0.2 )#15054 centroid
+# 
+#  
+
+```

@@ -179,7 +179,7 @@ pmTidy$loc <- 1
 #2. Sighted encounters - extract distance and group size
 ```{r}
 #add visual distances to pmTidyv from Spermies_SIGHTdata (subset from Amanda's file)
-sw.vis <- read.csv(here::here('data', 'Spermies_SIGHTdata.csv'))
+sw.vis <- read.csv(here::here('data', 'Spermies_SIGHTS_HI_1986-2017.csv'))
 
 #filter for sightings from sperm.datsub
 # vid <- sperm.dat[,c(3,5:7, 19, 20)]
@@ -225,6 +225,10 @@ pmTidyLOCandSIGHT <- arrange(pmTidyLOCandSIGHT, survey, acid)
 pmTidyALL <- bind_rows(pmTidy, pmTidyv2, pmTidyun)
 
 pmTidyALL <- arrange(pmTidyALL, survey, acid)
+
+
+pmTidyALL<-filter(pmTidyALL, ID != '1705_112_999' | peak !='A' , ID != '1706_49_999' | peak != 'A')
+
 
 ```
 
