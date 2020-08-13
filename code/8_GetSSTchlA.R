@@ -4,19 +4,20 @@
 library(PAMmisc)
 library(here)
 
-
+surveynum = 1706
 gridsize = 10
-surveynum = 1303
+loctype = 'trackline'
+loctype2 = 'trk'
 
-centroidData <- sw
-centroidData <- readRDS(here::here('output', paste0('centroids', surveynum, '_10km.rda' )))
+# centroidData <- sw
+centroidData <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', loctype, '/', 'centroids', surveynum, '_', gridsize, 'km_', loctype2, '.rda' )))
 colnames(centroidData)[5] <- "Longitude"
 colnames(centroidData)[6] <- "Latitude"
 # [c(1,2)] <- c("good", "better")
 
 
 
-envType = 'chla'
+envType = 'sst'  #sst or chla
 
 #for SST
 envDataset = 'erdMH1sstdmday'
@@ -42,7 +43,8 @@ edinfo <- erddapToEdinfo(envDataset, baseurl = http)
 
 #2. Run centroids with no buffer, getting data from single location and saving it
 # ptm=proc.time()
-matchedData <- matchEnvData(centroidData, nc=edinfo, fileName = here::here('data', paste0(surveynum, "_", envType, ".nc")))
+matchedData <- matchEnvData(centroidData, nc=edinfo, fileName = here::here('output/data_output', paste0(surveynum, "_", gridsize, 'km_',
+                                                                                                        envType, ".nc")))
 # elapsedmin = proc.time()-ptm
 
 #3. Deal with any NAs in the dataset
