@@ -22,7 +22,7 @@ library(lubridate)
 
 ##Load parameters
 ```{r}
-surveynum = 1705
+surveynum = 1706
 gridsize = 5
 loctype = 'localized'
 loctype2 = 'loc'
@@ -40,15 +40,15 @@ Then proceed to 'GRID QC' chunk below.
 
 ```{r}
 #load grid data
-gridEffort <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+gridEffort <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
 
 
 #load centroid locations
-centroidAll <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids',  surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+centroidAll <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids',  surveynum, '_', gridsize, 'km_', loctype2, 'raw.rda')))
 
 ```
 
-## GPS data
+##1. GPS data
 ```{r}
 # EXAMPLE WORK FLOW
 # 1) First read in gps, then you need to convert longitudes to 0-360,
@@ -71,7 +71,7 @@ gpsAll <- filter(gpsAll, Id >= 146246 & Id <= 148253)
 
 
 
-##Load sperm whale detection data
+##2. Load sperm whale detection data
 Includes localized acoustic encounters and sightings with acoustics only.
 ```{r}
 # 2) Read in detections, convert column names to Longitude, Latitude, UTC,
@@ -144,21 +144,26 @@ gridEffort <- doAllGrid(gps = gpsAll,
 #The centroid function has to be run twice if there are detections with no effort.
 #function calculates the difference between start and end times in minutes
 centroidAll <- gridCentroid(gridEffort, gpsAll)
+
+#Save raw grid and centroid data
+saveRDS(gridEffort, here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
+
+saveRDS(ALLcentroids, here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
 ```
 
 #GRID QC
 All detections should be included and each have effort > 0. Cells with zero effort cannot have centroids calculated. If all is well here, then proceed to centroids.
 Otherwise, make changes to any detections in 'Resolve cell...' chunk.
 ```{r}
-#check that all detections are included as expected. Should be all TRUE
+#1. check that all detections are included as expected. Should be all TRUE
 (pmDetsub$ID %in% gridEffort$detections$ID)
 data.frame(pmDetsub$ID , gridEffort$detections$ID) #if mismatch, this won't work
 
-#which detections have effortArea = 0? (Which are deemed to have 0 effort? No bueno.)
+#2. which detections have effortArea = 0? (Which are deemed to have 0 effort? No bueno.)
 (effdets <- which(gridEffort$detections$effortArea==0)) #output is the index
 (effchg <- gridEffort$detections[effdets,]) #output is all info for each detection with 0 effort
 
-#check for duplicate detections in the same cells
+#3. check for duplicate detections in the same cells
 gridIndex <- as.data.frame(table(gridEffort$detections$gridIndex))
 colnames(gridIndex) <- c('effCells', 'frequency')
 gridIndex
@@ -173,12 +178,14 @@ gridmap <- attr(gridEffort$grid, 'map')
 # g = 1 # which row in effchg?
 # GridInd = effchg[g,]$gridIndex # what grid cell is it in?
 GridInd = effchg[,c(3,43)] # pull acid and gridIndex for all detections with no effort
-GridEffArea <- gridEffort$effort$area[GridInd[,2]] # how much effort is in the cell? (Should be zero)
+gridEffort$effort$area[GridInd[,2]] # how much effort is in the cell? (Should be zero)
 
 #Get cell index for the closest surrounding cells. Use stack to make one column for them.
 GridSurroundtmp <-data.frame(t(gridmap[GridInd[,2],]))
-colnames(GridSurroundtmp) <- GridInd[,1] #include acid as column name
+
 GridSurround <- stack(GridSurroundtmp) #output 2 columns, 1: grid cell, 2: ac. ID
+GridSurround$acid <- GridInd[,1]       #add column for ac ID
+GridSurround <- GridSurround[,-2]      #remove 'ind' col of X1...X4 col names
 
 GridEff <- data.frame(gridEffort$effort$area[GridSurround$values]) # get effort in surr cells
 GridDir <- c('S', 'E', 'N', 'W') #make this vector
@@ -203,16 +210,21 @@ actualArea <- as.numeric(st_area(x$grid))
 coveragePct <- round(x$effort$area / actualArea, 3)
 coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
 
-pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, 'noEff2.pdf')), width=11,height=8)
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '2.pdf')), width=11,height=8)
 
 plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.1)
 points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=15, cex = 0.05)
 # points(x=pmDetsub$Longitude, y=pmDetsub$Latitude, col='green', pch=1, cex=0.1, lwd=0.1)
 # text(pmDetsub$Longitude, pmDetsub$Latitude,col='magenta', labels=pmDetsub$acid, cex=0.1, lwd = 0.1 )
+
+#plot detections and their centroids missing effort
 text(x=effchg$Longitude, y=effchg$Latitude	, col='magenta', labels=effchg$acid, cex=0.1, lwd = 0.1 )
-points(x=effchg$Longitude, y=effchg$Latitude	, col='orange', pch = 19, cex=0.07, lwd = 0.07 )
-# points(effchg$Longitude, effchg$Latitude, col='orange', pch=3, cex=0.05)
+points(x=effchg$Longitude, y=effchg$Latitude	, col='orange', pch = 19, cex=5, lwd = 0.07 )
 text(GridCentJoin$lon, GridCentJoin$lat, col='darkviolet', labels=GridCentJoin$Dir, cex=0.1, lwd=0.1)
+
+#plot detections missing in the centroid data
+# text(x=CentMiss$Longitude, y=CentMiss$Latitude	, col='magenta', labels=CentMiss$acid, cex=0.1, lwd = 0.1 )
+#  points(x=CentMiss$Longitude, y=CentMiss$Latitude	, col='orange', pch = 19, cex=0.07, lwd = 0.07 )
 
 dev.off()
 
@@ -223,9 +235,9 @@ dev.off()
 ```{r}
 
 #change values for gridIndex, effortArea, and actualArea in 'gridEffort$detections' while keeping everything else the same
-
+CentNew = 1 #c(1,4)  #represents the row number(s) in GridCentJoin that corresponds with the correct dir
 #!! 'newCell' will change depending on the survey and spatial scale #
-newCell <- GridCentJoin[c(1,4),1] # Select the gridIndex for the new cells based on the plot
+newCell <- GridCentJoin[CentNew,1] # Select the gridIndex for the new cells based on the plot
 
 newEffArea <- gridEffort$effort$area[newCell] # get the effort for each new cell from original grid
 newActArea <- actualArea[newCell] # get the new cell's actual area
@@ -239,10 +251,9 @@ gridEffort$detections <- rbind(gridEffort$detections, effchg2) #bind new cell in
 
 #original rows from 'effdets' index should be missing with the new cells at the bottom 
  View(gridEffort$detections)
-
 ```
 
-#Save grid data: 
+#Save new grid data: 
 !!! All detections must have Effort > 0
 ```{r}
 saveRDS(gridEffort, here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
@@ -253,7 +264,9 @@ saveRDS(gridEffort, here::here(paste0('output/gridEffort/', gridsize, ' km-', lo
 All the cells with effort > 0 represent presences AND absences.
 Presences can be filtered using detections$gridIndex 
 ```{r}
-#Only run again if grid cells with no effort were replaced. Otherwise, no need.
+##STOP!
+# Did the original grid data include detections with no effort?
+# If YES, then run gridCentroid again. If NO, then do not run it again.
 centroidAll <- gridCentroid(gridEffort, gpsAll)
 
 #do another check to make sure all detections have centroid locations WITH EFFORT
@@ -263,7 +276,9 @@ nrow(all_prz) == nrow(pmDetsub) ## We want TRUE
 #Are there any missing detections or mismatches in detections between the grid data and the centroid data? These should all be 0
 (notINgrid <- (all_prz$effCells[!all_prz$effCells %in% gridEffort$detections$gridIndex])) 
 (notINcent <- (gridEffort$detections$gridIndex[!gridEffort$detections$gridIndex %in% all_prz$effCells]))         
-
+#which detection is missing in the centroid data?
+CentInd = which(gridEffort$detections$gridIndex == notINcent) #outputs index
+CentMiss = gridEffort$detections[CentInd,]
 # Do more if things don't match, but they should and all should be well.
 # (id_not <- which(!(gridIndex$Var1 %in% all_prz$effCells == TRUE))) #find the detections that don't match up
 # (not_det <- gridEffort$detections[id_not,]) #this is hopefully empty. These are the detections NOT IN the centroids

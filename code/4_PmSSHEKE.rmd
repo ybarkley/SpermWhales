@@ -25,6 +25,7 @@ library(ncdf4)
 
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
+#Use 'global-reanalysis-phy-001-030-monthly_SSHAUV.nc' from CMEMS
 sshnc = paste0(here::here('data'), '/', flist[10])
 
 nc <- nc_open(sshnc)
@@ -64,7 +65,7 @@ for (band in 1:nout) {
   start = sshb[[band]] #select a band/month
   df = as.data.frame(rasterToPoints(start)) #convert rasterlayer into df
   colnames(df) <- c("lon", "lat", band) #add col names, using the band number representing each month
-  sshtotal = cbind(sshtotal, df[, 3]) #each column is the SSHsd for each month
+  sshtotal = cbind(sshtotal, df[, 3]) #each column is the SSH for each month
   
 } 
 #save sshtotal
