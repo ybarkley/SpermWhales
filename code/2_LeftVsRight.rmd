@@ -32,16 +32,17 @@ Then also think about the spatial variability within the env data itself - like 
 #load all data with env data
 SwEnvData <- read.csv('./output/SpermiesWithEnvData_20200531.csv', stringsAsFactors = F) #this was originally from 2_PmEnvData_clean
 #filter for loc and vis encs
-sw.locvis <- filter(SwEnvData, loc == 1 | sid < 999)
-sw.locvis <- filter(SwEnvData, type == 'best' | type == 'NA')
+# sw.locvis2 <- filter(SwEnvData, loc == 1 | sid < 999)
+# sw.locvis <- filter(SwEnvData, type == 'best' | type == 'NA')
 
 #remove 1-peak encounters
 LR <-filter(SwEnvData, peak == 'A' | peak == 'B')
 # LR <-select(SwEnvData, ID, UTC, lon, lat, peak, itrk, type, pdist, sstAQ_m:eke)
+
+#filter for the best peaks and make separate dfs for peaks A and B
 LRbest <-filter(LR, type == 'best', itrk == 1)
 LRbestA <- filter(LRbest, peak =='A')
 LRbestB <- filter(LRbest, peak =='B')
-
 
 LRbest$asp_rad <- LRbest$asp_deg * 0.017453
 
@@ -53,9 +54,10 @@ LRbest$asp_rad <- LRbest$asp_deg * 0.017453
 
 #####Get the difference in env data between peaks A and B for each two-peak encounter#####
 
+#This creates new columns in LRbest
 require(data.table)
 LRbest <- data.table(LRbest)
-LRbest[, diffsst := abs(sstAQ_m - shift(sstAQ_m)), by = ID]
+test = LRbest[, diffsst := abs(sstAQ_m - shift(sstAQ_m)), by = ID] #for example, this is the difference in sst between peaks for each encounter
 LRbest[, difft600 := abs(temp600C - shift(temp600C)), by = ID]
 LRbest[, diffchla := abs(chla_m - shift(chla_m)), by = ID]
 LRbest[, diffbath := abs(bath - shift(bath)), by = ID]
@@ -79,10 +81,13 @@ meandist <-group_by(lrbest, ID) %>% summarize(m=mean(abs(pdist)))
 #find the single peaks that aren't in lrbest -> there shouldn't be any...
 temp <-meandist$ID[!(meandist$ID %in% lrbest$ID)] 
 lrbest2 <- meandist[!meandist$ID %in% temp, ]  #remove these encounters from meandist to add in as col of lrbest 
-lrbestyay <-cbind(lrbest2[2], lrbest)
+lrbestyay <-cbind(lrbest2[2], lrbest) # Using this df to evaluate differences between env data
 
 
 ##### Bathymetry #### 
+# plot each variable against the mean distance (of peaks A and B) for each encounter
+# might expect to have a greater difference the farther you go from the trackline
+
 plot(lrbestyay$m, abs(lrbestyay$diffbath), main="bathymetric depth", xlab = 'Mean Distance (km)', ylab = 'Diff in Bathymetry (m)')
 hist(abs(lrbestyay$diffbath), breaks = 10, main='Distribution of Bathy Differences')
 

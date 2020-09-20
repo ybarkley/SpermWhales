@@ -43,79 +43,59 @@ library(doParallel)
 ```
 
 #Load detection dataset
-```{r message=F}
-#Load output from 1_TidySpermWhale code
-sw <- read_csv(here::here('output', 'SpermiesFinal_20200531.csv'))
-sw$UTC = mdy_hms(sw$UTC, truncated = 2)
-
-
-#NOW all types of encounters can have env data extracted simultaneously.
-#set up for location estimates from localized data
-lon = sw$lon  #xcoord
-# lon = lon[!is.na(lon)]
-lat=sw$lat    #ycoord
-# lat = lat[!is.na(lat)]
-dates=sw$UTC  #tcoord
-# dates = dates[!is.na(dates)]
-
-
-
-#set up for trackline locations for localized encs
-
-sw=filter(sw, loc == 1)
-lon = sw$lon_trk
-lat = sw$lat_trk
-dates=sw$UTC  
-
-sw2=filter(sw, loc == 1)
-sw2 <- select(sw2, ID, loc, lon_trk, lat_trk)
-
-write.csv(sw2, here::here('data', 'Spermies_localized.csv'), row.names = F)
-```
-
 ```{r}
 surveynum = 1604
-gridsize = 25
-loctype = 'allsw'
-loctype2 = 'all'
+gridsize = 5
+loctype = 'localized'
+loctype2 = 'loc'
 
 #Load rda from gridding
-# sw=readRDS(here::here('Documents\\PHD\\Chp 3\\data\\centroids\\10 km\\centroids1705_10km.rda')) #using NOAA laptop
-sw <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', loctype, '/', 'centroids', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
-# sw <- readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\centroids\\10 km\\centroids1604_10km.rda')
+# sw=readRDS(here::here(paste0('Documents\\PHD\\Chp 3\\data\\centroids\\', gridsize, ' km'), paste0('centroids', surveynum, '_', gridsize, 'km_loc.rda'))) #using NOAA laptop
+# sw <- readRDS(here::here('output', paste0('centroids', surveynum, '_', gridsize, 'km.rda')))
+# sw <- readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\ProjectSpermie_Desktop\\centroids\\5 km\\centroids1604_5km_loc.rda')
+sw <- readRDS( paste0('output/centroids/', gridsize, ' km-', loctype, '/', 'centroids', surveynum, '_', gridsize, 'km_', loctype2, '.rda' ) )
 
 lon = ifelse(sw$lon>180, sw$lon-360, sw$lon)
 lat = sw$lat
-dates=sw$UTC  
+dates=sw$UTC 
+
+#get the min and max UTC for the dataset
+minUTC <- min(sw$UTC)
+minUTC <- str_sub(minUTC, 1,10)
+minUTC <- ymd_hms(paste0(minUTC, ' 00:00:00'))
+maxUTC <- max(sw$UTC)
+maxUTC <- str_sub(maxUTC, 1,10)
+maxUTC <- ymd_hms(paste0(maxUTC, ' 00:00:00'))
+
 
 #new
 minUTC <- min(sw$UTC)
 minUTC <- str_sub(minUTC, 1,10)
-
 minUTC <- ymd_hms(paste0(minUTC, ' 00:00:00'))
-# minUTC <- ymd_hms(paste0('2017-10-01 00:00:00'))
 
 maxUTC <- max(sw$UTC)
 maxYr <- str_sub(maxUTC, 1,4)
 maxMo <- as.numeric(str_sub(maxUTC, 6,7))+1
-maxDay <- str_sub(maxUTC, 9, 10)
+maxDay <- str_sub(maxUTC, 9,10)
 maxUTC <- ymd_hms(paste0(maxYr,'-',maxMo,'-',maxDay, ' 00:00:00'))
+
 ```
 
 #Load Env Data
 ```{r}
+
 #5. Bathymetry: https://topex.ucsd.edu/WWW_html/srtm15_plus.html, 180 to -180
-bathy_tot <- readRDS(here::here('data', 'bathy_tot.rda')) #laptop 
-# bathy_tot <- readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\bathy_tot.rda') #desktop
-# bathy_tot <- readRDS(here::here('PHD\\Chp 3\\data\\bathy_tot.rda')) #NOAA
+# bathy_tot <- readRDS(here::here('data', 'bathy_tot.rda')) #laptop 
+bathy_tot <- readRDS('data/bathy_tot.rda') #desktop
+# bathy_tot <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\bathy_tot.rda')) #NOAA
 
 
 #8. Distance to Land: http://www.soest.hawaii.edu/pwessel/gshhg/, "dist_to_GSHHG_v2.3.7_1m.nc" 
 # Should all be negative. Otherwise the value is from inland.
 # Also uses nc file located at the VERY BOTTOM of the webpage, so far at the bottom that it's super easy to miss.
-dist_slice <-readRDS(here::here('data', 'dist2land.rda'))  #pers laptop
-# dist_slice <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\dist2land.rda')  #desktop
-# dist_slice <-readRDS(here::here('PHD\\Chp 3\\data\\dist2land.rda')  #NOAA
+# dist_slice <-readRDS(here::here('data', 'dist2land.rda'))  #pers laptop
+dist_slice <-readRDS('data/dist2land.rda')  #desktop
+# dist_slice <-readRDS(here::here('Documents\\PHD\\Chp 3\\data\\dist2land.rda'))  #NOAA
 
 #3. Temperature at 600 m: http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d346_28ac_fccf.html,  0 to 360
 ##choose a depth for dep (100, 500, 600)
@@ -128,33 +108,30 @@ godas = paste0('godas', dep)
 
 
 #6/7. Slope and Aspect, same as bathymetry dataset, 180 to -180
-slope_aspdf2 <-readRDS(here::here('data', 'slope_aspHIdf.rda')) #laptop
-# slope_aspdf2 <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\slope_aspHIdf.rda') #desktop
-# slope_aspdf2 <- readRDS(here::here('PHD\\Chp 3\\data\\slope_aspHIdf.rda')) #NOAA
+# slope_aspdf2 <-readRDS(here::here('data', 'slope_aspHIdf.rda')) #laptop
+slope_aspdf2 <-readRDS('data\\slope_aspHIdf.rda') #desktop
+# slope_aspdf2 <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\slope_aspHIdf.rda')) #NOAA
 slope_aspdf2 <- as.data.frame(slope_aspdf2)
 ```
 
 ## Run for each survey to truncate dates
 ```{r}
-#9. SSH: https://resources.marine.copernicus.eu/?option=com_csw&task=results?option=com_csw&view=details&product_id=GLOBAL_REANALYSIS_PHY_001_030,   0 to 360
-sshtidyaTMP <-readRDS(here::here('data', 'ssh_tidy.rda')) #laptop
-# sshtidya <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\ssh_tidy.rda') #desktop 
-# sshtidya <- readRDS(here::here('PHD\\Chp 3\\data\\ssh_tidy.rda') #NOAA
+#9. SSH: https://resources.marine.copernicus.eu/?option=com_csw&task=results?option=com_csw&view=details&product_id=GLOBAL_REANALYSIS_PHY_001_030,  0 to 360
+# sshtidya <-readRDS(here::here('data', 'ssh_tidy.rda')) #laptop
+sshtidyaTMP <-readRDS('data\\ssh_tidy.rda') #desktop
+# sshtidya <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\ssh_tidy.rda')) #NOAA
+# sshtidya= dplyr::filter(sshtidyaTMP, date >= ymd_hms('2016-06-01 00:00:00') & date < ymd_hms('2016-08-30 00:00:00'))
 sshtidya = dplyr::filter(sshtidyaTMP, date >= minUTC & date < maxUTC)
-min(sshtidya$date)
-max(sshtidya$date)
 
-#10. SSHsd: same as ssh,  0 to 360
-sshZtidyaTMP<-readRDS(here::here('data', 'sshsd_tidy.rda')) #laptop
-# sshZtidya <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\sshsd_tidy.rda') #desktop
-# sshZtidya <- readRDS(here::here('PHD\\Chp 3\\data\\sshsd_tidy.rda') #NOAA
+#10. SSHsd: same as ssh,  0-360
+# sshZtidya<-readRDS(here::here('data', 'sshsd_tidy.rda')) #laptop
+sshZtidyaTMP <-readRDS('data\\sshsd_tidy.rda') #desktop
+# sshZtidya <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\sshsd_tidy.rda')) #NOAA
 sshZtidya= filter(sshZtidyaTMP, date >= minUTC & date < maxUTC)
-
-
-#11. EKE: same as ssh, using U and V data,  0 to 360
-ekeZtidyaTMP<-readRDS(here::here('data','eke_tidy.rda')) #laptop
-# ekeZtidya <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\eke_tidy.rda') #desktop
-# ekeZtidya<-readRDS(here::here('Documents\\PHD\\Chp 3', 'eke_tidy.rda')) #NOAA
+#11. EKE: same as ssh, using U and V data, 0-360
+# ekeZtidya<-readRDS(here::here('data','eke_tidy.rda')) #laptop
+ekeZtidyaTMP <-readRDS('data\\eke_tidy.rda') #desktop
+# ekeZtidya<-readRDS(here::here('Documents\\PHD\\Chp 3\\data\\eke_tidy.rda')) #NOAA
 ekeZtidya= filter(ekeZtidyaTMP, date >= minUTC & date < maxUTC)
 
 ```
@@ -191,66 +168,44 @@ names(env5_bath) = c("bath_m", "matched_lon", "matched_lat", "true_lon", "true_l
 min_bath[3]/60 
 
 #### SAVE All bathy data ####
-saveRDS(env5_bath, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
-# env5_bath <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+saveRDS(env5_bath, here::here( paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll.rda') ))
 
 ```
 
-##2. Evaluate the bathy data
-Truncate at 700 m, the data support it.
+##2. Evaluate the bathy data.
+Truncate at 1000 m if data support it.
 ```{r}
+
 #Evaluate Bathymetry truncation distance by looking at bathy in the data
 swdat1=sw[,c(1:3, 5:8)]
-swdat2=env5_bath[,c(1:6)]
+swdat2=env5_bath[,c(1,6)]
 
 swdat3=distinct(merge(swdat1, swdat2, by='effCells', all.x=TRUE))  #merge without getting duplicates
 swdat3_pa1 = filter(swdat3, pa==1)
 swdat3_pa0 = filter(swdat3, pa==0)
 
 histogram(swdat3$bath_m, main='All Bathymetry')
-histogram(swdat3_pa1$bath_m, main = "Bathymetry of Whale", breaks=20)
+histogram(swdat3_pa1$bath_m, main = "Bathymetry of Whale")
 histogram(swdat3_pa0$bath_m, main = "Bathymetry of Absences")
 
-#keep the 1303 at 697 m at the actual sighting location of 1303.S71 dammit
-swdat3_pa1[1, 8] <- -697
-# 
-tmp <- filter(swdat3_pa0, bath_m <= -700)
-env5_bath2 = rbind(swdat3_pa1, tmp)
-env5_bath = env5_bath2[, c(8:12,1)]
-
-
-####
 env5_bathAll <- env5_bath
 tmp <- filter(env5_bath, bath_m <= -700)
 env5_bath=tmp
 
 #### SAVE subset of bathy data ####
-saveRDS(env5_bath, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2,'_bathy.rda')))
+# saveRDS(env5_bath, here::here(paste0('Documents\\PHD\\Chp 3\\',surveynum, '_', gridsize, 'km_', loctype2, '_bathy.rda'))) #VM
+saveRDS(env5_bath, here::here( paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_bathy.rda') )) #Desktop
 
 sw <-filter(sw, effCells %in% env5_bath$effCells)
 
 saveRDS(sw, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2,'_sw.rda')))
-
-# sw<- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_sw.rda')))
-```
-
-
-```{r}
-#for adding one row to 1303 (??? don't know why this is here... 9/12/20)
-sw <-filter(sw, effCells == 4034)
-
-
 ```
 
 ##3. Extract Remaining Data
 ```{r}
 #### 8. Distance to Land ####
 ## Use 0-360 for lon, also for temp 600 and wave power
-lon = sw$lon
-lat = sw$lat
-dates=sw$UTC 
-
-
+lon=sw$lon
 
 # Find values of dist2land closest to whales or gridpoints
 ptmd=proc.time()
@@ -270,11 +225,11 @@ for (i in 1:nrow(sw)){
 }
 
 
-(min_d2land=proc.time()-ptm )
+(min_d2land=proc.time()-ptmd )
 min_d2land[3]/60
 
 #### SAVE d2land ####
-saveRDS(env8_d2land, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_d2land.rda')))
+saveRDS(env8_d2land, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_d2land.rda')))
 
 
 
@@ -296,19 +251,21 @@ names(godas) = c("date", "depth", "matched_lat", "matched_lon", paste0("potempK"
 
 env3_godas600 <- godas
 
-(min_godas600=proc.time()-ptm )
+
+(min_t600=proc.time()-ptm )
+min_t600[3]/60
 
 #### SAVE temp600 ####
-saveRDS(env3_godas600, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_temp600.rda')))
+saveRDS(env3_godas600, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_temp600.rda')))
 
 
 
 #### 4. Wave power (WaveWatch 3) ####
-# https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tper[(2020-09-19T09:00:00Z):1:(2020-09-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)],Thgt[(2020-09-19T09:00:00Z):1:(2020-09-19T09:00:00Z)][(0.0):1:(0.0)][(-77.5):1:(77.5)][(0.0):1:(359.5)]
+
 ptm=proc.time()
 env4_ww3 = rep(NA,6)
 for (i in 1:length(lon)) {
-    url = paste("https://pae-paha.pacioos.hawaii.edu/erddap/griddap/ww3_global.csv?Tper[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],Thgt[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_98bb_253a_eb1c.csv?htsgwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],perpwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
     new = read.csv(url, skip = 2, header = FALSE)
     new$true_lon <- lon[i]
     new$true_lat <- lat[i]
@@ -325,7 +282,7 @@ env4_ww3$wavepow = ((1024*(9.8^2))/(64*pi))*env4_ww3$whght^2*env4_ww3$wtime
 min_wavepow[3]/60
 
 #### SAVE wavepow ####
-saveRDS(env4_ww3, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_wavepow.rda')))
+saveRDS(env4_ww3, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_wavepow.rda')))
 
 
 
@@ -356,7 +313,7 @@ min_slpasp[3]/60
 
 
 #### SAVE slpasp ####
-saveRDS(env67_slpasp, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_slpasp.rda')))
+saveRDS(env67_slpasp, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_slpasp.rda')))
 
 
 # Save Static Data of All Kinds
@@ -373,8 +330,11 @@ saveRDS(env67_slpasp, here::here(paste0('output/envData/', gridsize, ' km-', loc
 
 #### 9. SSH ####
 # More details on extracting the data from CMEMS are in '4_PmSSHEKE.rmd', but now don't have to switch over to it.
+
+#REQUIRES 0-360
 lon=sw$lon
 
+ptm_total = proc.time()
 ptm=proc.time()
 
 env9_ssh = NULL
@@ -395,8 +355,7 @@ for (i in 1:nrow(sw)){
 min_ssh[3]/60
 
 #### SAVE ssh ####
-saveRDS(env9_ssh, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_ssh.rda')))
-
+saveRDS(env9_ssh, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_ssh.rda')))
 
 
 #### 10. SSHsd ####
@@ -420,7 +379,7 @@ for (i in 1:nrow(sw)){
 min_sshsd[3]/60
 
 #### SAVE sshsd ####
-saveRDS(env10_sshsd, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_sshsd.rda')))
+saveRDS(env10_sshsd, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_sshsd.rda')))
 
 
 #### 11. EKE ####
@@ -445,8 +404,11 @@ for (i in 1:nrow(sw)){
 min_eke[3]/60
 
 #### SAVE eke ####
-saveRDS(env11_eke, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_eke.rda')))
+saveRDS(env11_eke, here::here(paste0('output/envData/',surveynum, '_', gridsize, 'km_', loctype2, '_eke.rda')))
 
+
+total_min = proc.time()-ptm_total
+total_min[3]/60
 ```
 
 

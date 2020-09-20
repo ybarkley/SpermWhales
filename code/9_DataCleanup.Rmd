@@ -168,7 +168,7 @@ trythis$survey = surveynum
 assign(dataname, trythis)
 
 #save completed file
-saveRDS(assign(dataname, trythis), here::here(paste0('output/data_output/', gridsize, ' km-', loctype), dataname))
+saveRDS(assign(dataname, trythis), here::here(paste0('output/output/', gridsize, ' km-', loctype), dataname))
 
 
 
@@ -192,6 +192,9 @@ CompleteTotal <- bind_rows(Complete1641, Complete1303, Complete1604, Complete170
 
 sum(is.na(CompleteTotal[,15:26]))     # Total NA for env data columns
 colSums(is.na(CompleteTotal[,15:26])) # Total NA per column
+
+
+saveRDS(CompleteTotal, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_raw.rda')))
 
 ```
 

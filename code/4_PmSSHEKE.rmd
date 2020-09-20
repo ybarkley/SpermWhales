@@ -1,5 +1,5 @@
 ---
-title: "SSH netcdf"
+title: "Derive SSH/SSHsd/EKE from netcdf"
 author: "Yvonne Barkley"
 date: "4/7/2020"
 output: html_document
@@ -26,7 +26,7 @@ library(ncdf4)
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
 #Use 'global-reanalysis-phy-001-030-monthly_SSHAUV.nc' from CMEMS
-sshnc = paste0(here::here('data'), '/', flist[10])
+sshnc = paste0(here::here('data'), '/', flist[11])
 
 nc <- nc_open(sshnc)
 attributes(nc$var)$names
@@ -46,11 +46,26 @@ sshb <-brick(sshnc, varname="zos")
 # units: hours since 1950-01-01
 name <- names(sshb) #name of each layer (which is the month)
 namesplit <- strsplit(name, "X", fixed=T) #split off the 'X' in front of the number
-namedf <- data.frame(matrix(unlist(namesplit), nrow=length(namesplit), byrow=TRUE)) 
+namedf <- data.frame(matrix(unlist(namesplit), nrow=length(namesplit), byrow=TRUE)) #make a dataframe with the dates as names
 colnames(namedf) <- c('X', 'date')
 
+#NOTE about attempted changes
+#####
+# YB attempted to change things 9/9/20, but no need. Also not sure that the original code for 'namedate' works... 
+# require(stringr)
+# #trying to convert weird dates to actual posixct objects like "2013-01-01 08:00"
+# nameperiods <- str_replace_all(namedf$date, "[.]", "-")
+# 
+# nameperiods %>% .[10] %>% str_pad(1, "right") %>% str_c(nameperiods[1:10])  ##SO CLOSE! NEed to add in : for HMS
+# letters %>%
+#   .[1:10] %>% 
+#   str_pad(3, "right") %>%
+#   str_c(letters[2:11])
+# 
+# names2 <- substring(nameperiods, 11, 11) <- ' ' #pull out CTD number in file name
+#####
 namedate <- as.numeric(levels(namedf$date))[namedf$date]
-namedate <- as.POSIXct(namedate*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") 
+namedate <- as.POSIXct(namedate*3600, origin="1950-01-01",tz="GMT", format="%Y-%m-%d") #do i need this???
 
 nout = nlayers(sshb) #layers represent months in the brick
 
@@ -245,9 +260,10 @@ plot(swAug10$xlon2, swAug10$lat_trk, col="black", pch=16, cex=1, xlab='', ylab='
 
 
 #EKE using U & V data
+U is eastward, V is northward velocities
 ```{r}
 ################ U data ####################
-# (E-W, meridian currents)
+# (E-W, meridian currents, eastward velocities)
 
 ub <-brick(sshnc, varname="uo") 
 # values(ub)
@@ -275,7 +291,7 @@ uZtidya <- uZtotal %>% pivot_longer(-(lon:lat),names_to = 'date', values_to = 'u
 
 
 ################ V data ####################
-# (N-S, meridian currents)
+# (N-S, meridian currents, northward velocities)
 vb <-brick(sshnc, varname="vo") 
 
 vtotal = NULL
@@ -301,7 +317,7 @@ saveRDS(vtotal, file = paste0(here::here('data'), '/', 'v_total.rda'))
 
 
 ################ EKE data ####################
-# EKE=1/2x(U²+V²) - meridian and zonal geostrophic currents
+# EKE=1/2x(U²+V²) -  u=zonal geostrophic currents, V=meridian geostrophic currents
 
 eke = 0.5*(uZtotaldat^2 + vZtotaldat^2) #all eke values, no lon/lat
 

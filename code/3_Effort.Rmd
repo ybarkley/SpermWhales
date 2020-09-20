@@ -179,12 +179,13 @@ write.csv(str8sub1641, here::here('output', 'straightPath_1641.csv'), row.names 
 
 
 
-#1604 - 10 second interval
+#1604/1642 - 10 second interval
 Seconds are included in UTC
 ```{r}
 # Load data
 
 gps1604 <- read.csv(here::here('data', 'GPS_1604.csv'))
+gps1604 <- read.csv(here::here('data', 'GPS_1642.csv'))
 
 # subset for locations west of -150 W, into the HI EEZ
 gps1604$UTC <- as.character(gps1604$UTC)
@@ -192,7 +193,8 @@ gps1604$UTC <- ymd_hms(gps1604$UTC)
 
 ```
 
-#Straight path for 1604
+#Straight path for 1604/1642
+YB added 1642 on 9/19/20
 ```{r}
 nSmall = 15
 nLarge = 35
@@ -231,7 +233,7 @@ myPlot <- ggplot(str8sub1604, aes(x=Longitude, y=Latitude)) +
 # scale_size_manual(values = c(2, 1))
 print(myPlot)
 
-write.csv(str8sub1604, here::here('output', 'straightPath_1604.csv'), row.names = F)
+write.csv(str8sub1604, here::here('output', 'straightPath_1642.csv'), row.names = F)
 ```
 
 
@@ -341,7 +343,8 @@ Check that the sperm whales fall along the straight segments for each survey
 ```{r message=FALSE}
 #load sperm whale data
 SwEnvData_tot <- read_csv(here::here('output', 'SpermiesWithEnvData_20200326.csv'))
-SwEnvData_tot <- read.csv('./output/SpermiesFinalLR_20200708.csv', stringsAsFactors = FALSE)
+
+SwEnvData_tot <- read.csv('./output/SpermiesFinalLR_20200919.csv', stringsAsFactors = FALSE)
 surveynum = 1303
 str8segs <- read.csv(here::here('output/straightPath results', paste0('straightPathWeffort_', surveynum,'.csv')))
 
@@ -352,6 +355,8 @@ sw1303 <- filter(SwEnvData_tot, survey == surveynum)
 #1641
 sw1641 <- filter(SwEnvData_tot, survey == surveynum) 
 
+#1642
+sw1642 <- filter(SwEnvData_tot, survey == surveynum)
 
 #1604
 sw1604 <- filter(SwEnvData_tot, survey == 1604)# & lon >= -159 & lon <= -158 & lat < 22.5 & lat > 22) 
@@ -387,10 +392,9 @@ str8SW = sw1303
 Determine when and where the acoustics team was ON effort along straight segments.
 Use the 'str8sub' data for each survey because those include only the straight 
 ```{r}
-survey = 1303
+survey = 1642
 str8segs = eval(as.name(paste0('str8sub', survey)))
 str8SW = eval(as.name(paste0('sw', survey)))
-
 
 
 eff <- read.csv(here::here('data', paste0('Effort_', survey, '.csv')))
@@ -415,11 +419,11 @@ eff$PCTime <- mdy_hm(as.character(eff$PCTime))
 
 #use data.table functions to match the times and fill in the effort to the gps dataframe
 df_gps<- data.table(as.POSIXct(str8segs$UTC ))   #gps dataframe after using straightPath, filtered for speed
-df_gps=df_gps[16000:21359]
+# df_gps=df_gps[16000:21359] #sometimes joins are uneven
 colnames(df_gps) <- "date.gps"
 
 df_eff <- data.table(as.POSIXct(eff$PCTime), eff$ac_effort, eff$vis_effort)   #effort dataframe
-df_eff <- df_eff[14:20,]
+df_eff <- df_eff[14:20,] #?
 colnames(df_eff) <- c("date.eff", "aeffort", "veffort")
 
 # setDT(df_gps)
@@ -433,12 +437,14 @@ setkey(df_eff, join.time)
 
 
 join= df_eff[df_gps, roll = Inf]
+join2= df_gps[df_eff, roll = Inf]
+
+join[duplicated(join$date.eff)]
 
 # join2 = df_eff[df_gps, roll = 'nearest'] #do not use
 
 
-
-
+# join=join[-(1:4),] #did this for 1642 due to mismatch in row number, hopefully correct
 
 # join[duplicated(join),]
 # dup3 <- as.data.frame(table(join$UTC))
@@ -460,7 +466,7 @@ str8effsub <- str8eff[, c(1:3,24,25)]
   geom_point(data=str8SW, mapping = aes(lon2, lat), shape = 15))
 
 
-write.csv(str8eff, here::here('output', paste0('straightPathWeffort_', survey, 'b.csv')), row.names = FALSE)
+write.csv(str8eff, here::here('output', paste0('straightPathWeffort_', survey, '.csv')), row.names = FALSE)
 ```
 
 

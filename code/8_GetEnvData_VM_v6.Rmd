@@ -130,7 +130,7 @@ sshtidya <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\ssh_tidy.rda')) #NO
 
 #10. SSHsd: same as ssh,  180 to -180
 # sshZtidya<-readRDS(here::here('data', 'sshsd_tidy.rda')) #laptop
-# sshZtidya <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\sshsd_tidy.rda') #desktop
+# sshZtidya <-readRDS('C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales/data/sshsd_tidy.rda') #desktop
 sshZtidya <- readRDS(here::here('Documents\\PHD\\Chp 3\\data\\sshsd_tidy.rda')) #NOAA
 
 

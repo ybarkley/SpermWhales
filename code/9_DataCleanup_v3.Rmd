@@ -1,0 +1,583 @@
+---
+title: "Environmental Data Inspection"
+author: "Yvonne Barkley"
+date: "7/27/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library(tidyverse)
+
+#to remove variables, replace **
+rm(list = ls()[grep("env", ls())])
+```
+
+
+
+# Check environmental data
+
+#LOAD DATA
+```{r}
+surveynum = 1641
+gridsize = 25
+loctype = 'allsw'
+loctype2 = 'all'
+
+#to remove variables, replace **
+# rm(list = ls()[grep("diff", ls())])
+
+# Get gridEffort for the correct survey and spatial scale. 
+gridEffortCleanup <- readRDS(paste0('output/gridEffort/', gridsize, ' km-', loctype, '/', 'gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda'))
+pmDetsGrid <- gridEffortCleanup$detections
+pmDetsGrid <- pmDetsGrid[, c(1:26,43,45)]
+
+```
+
+
+#consolidate grid detections
+```{r}
+
+
+pmDetsGrid1641 = pmDetsGrid
+pmDetsGrid1642 = pmDetsGrid
+pmDetsGrid1303 = pmDetsGrid
+pmDetsGrid1604 = pmDetsGrid
+pmDetsGrid1705 = pmDetsGrid
+pmDetsGrid1706 = pmDetsGrid
+
+
+pmDetsGridTot = rbind.data.frame(pmDetsGrid1641,pmDetsGrid1642, pmDetsGrid1303, pmDetsGrid1604, pmDetsGrid1705, pmDetsGrid1706)
+
+```
+
+
+
+```{r}
+env1_sst      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_sst.rda')))
+env2_chla     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_chla.rda')))
+env3_godas600 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_temp600.rda')))
+env4_ww3      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_wavepow.rda')))
+# env4_ww3      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_wp.rda')))
+env5_bath     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_bathy.rda')))
+
+# env5_bath     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda')))
+
+env67_slpasp  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_slpasp.rda')))
+env8_d2land   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_d2land.rda')))
+env9_ssh      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_ssh.rda')))
+env10_sshsd   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_sshsd.rda')))
+env11_eke     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_eke.rda')))
+env12_d2smt   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_dist2smt.rda')))
+# env12_d2smt   <- read.csv(here::here(paste0('output/data_output/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_dist2smt.csv')))
+
+#check out all depths
+# env5_bathAll     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+
+#1303 rearrange and resave env5_bath data as tibble df
+# env5_bath <-  dplyr::select(env5_bath, last_col(), everything()) #and saved
+```
+
+
+Change the column names to UTC
+```{r}
+colnames(env3_godas600)[colnames(env3_godas600) == "date"] <- "UTC"
+colnames(env4_ww3)[colnames(env4_ww3) == "date"] <- "UTC"
+colnames(env9_ssh)[colnames(env9_ssh) == "date"] <- "UTC"
+colnames(env10_sshsd)[colnames(env10_sshsd) == "date"] <- "UTC"
+colnames(env11_eke)[colnames(env11_eke) == "date"] <- "UTC"
+
+```
+
+
+Fill NAs to see where they are
+```{r}
+matchedData[matchedData[,8]=='NA'] <- NA                  #put in NaNs to variable column
+
+env1_sst[env1_sst[,8]=='NA'] <- NA      
+env2_chla[env2_chla[,8]=='NA'] <- NA       
+env3_godas600[env3_godas600[,5]=='NA'] <- NA  
+env4_ww3[env4_ww3[,9]=='NA'] <- NA        
+env5_bath[env5_bath[,1]=='NA'] <- NA
+env67_slpasp[env67_slpasp[,3]=='NA'] <- NA    
+env67_slpasp[env67_slpasp[,4]=='NA'] <- NA    
+env8_d2land[env8_d2land[,1]=='NA'] <- NA     
+env9_ssh$ssh[env9_ssh[,4]=='NA'] <- NA     
+env10_sshsd$sshsd[env10_sshsd[,4]=='NA'] <- NA     
+env11_eke$eke[env11_eke[,4]=='NA'] <- NA       
+env12_d2smt[env12_d2smt[,2]=='NA'] <- NA 
+
+
+env11_eke$eke[is.na(env11_eke[, 4]),]
+
+
+```
+
+
+#Bind data
+Bind all data together with the presence/absence information
+```{r}
+#presence/absence info comes from env1_sst
+
+#TO make sure that the combining the dataframes is correct, sort each one based on effCells. Use arrange or sort, NOT order (f's things up)
+# Don't use joins because the duplicate effCells also f things up.
+
+env1_sstSORT  <- arrange(env1_sst, effCells)
+env2_chlaSORT <- arrange(env2_chla, effCells)
+env3_godasSORT<- arrange(env3_godas600, effCells)
+env4_ww3SORT  <- arrange(env4_ww3, effCells)
+env5_bathSORT <- arrange(env5_bath, effCells)
+env67_slpaspSORT<- arrange(env67_slpasp, effCells)
+env8_d2landSORT<- arrange(env8_d2land, effCells)
+# env8_d2landSORT2<- arrange(env8_d2land, effCells)
+env9_sshSORT  <- arrange(env9_ssh, effCells)
+env10_sshsdSORT<- arrange(env10_sshsd, effCells)
+env11_ekeSORT <- arrange(env11_eke, effCells)
+env12_d2smtSORT<- arrange(env12_d2smt, effCells)
+
+PmEnvTMP = data.frame(env1_sstSORT[, c(1:3, 5:7,9)], `chla`=env2_chlaSORT[, 9], `temp600`=env3_godasSORT[,5], `wavepow`=env4_ww3SORT[,9], `bath_m`= env5_bathSORT$bath_m, `slope`=env67_slpaspSORT[,3], `aspect`=env67_slpaspSORT[,4], 'd2land'=env8_d2landSORT[,1], `ssh`=env9_sshSORT[,4], `sshsd`=env10_sshsdSORT[,4], `eke`=env11_ekeSORT[,4], `d2smt`=env12_d2smtSORT[,1])
+colnames(PmEnvTMP)[colnames(PmEnvTMP) == "sst_mean"] <- "sst"
+
+
+# PmEnvDum = data.frame(env1_sstSORT[, c(1:3, 5:7,9)],env8_d2landSORT[,1], env5_bathSORT[,1])
+
+# PmEnvTMP2 = data.frame(env1_sstSORT[, c(1:3, 5:7,9)], env2_chlaSORT[, c(2,9)], env3_godasSORT[,c(5,8)], env4_ww3SORT[,c(8,9)], env5_bathSORT[,c(1,6)], env67_slpaspSORT[,c(3,7)], env67_slpaspSORT[,c(4,7)], env8_d2landSORT[,c(1,6)], env9_sshSORT[,c(4,7)], env10_sshsdSORT[,c(4,7)], env11_ekeSORT[,c(4,7)], env12_d2smtSORT[,c(2,5)])
+# 
+# #try again
+# PmEnvTMP3=list(env1_sst[, c(2,9)], env2_chla[, c(2,9)], env3_godas600[,c(5,8)], env4_ww3[,c(8,9)], env5_bath[,c(1,6)], env67_slpasp[,c(3,7)], env67_slpasp[,c(4,7)], env8_d2land[,c(1,6)], env9_ssh[,c(4,7)], env10_sshsd[,c(4,7)], env11_eke[,c(4,7)], env12_d2smt[,c(2,5)]) %>% reduce(inner_join, by = 'effCells')
+# list for whatevers
+# env1_sst
+# env2_chla
+# env3_godas600
+# env4_ww3
+# env5_bath
+# env67_slpasp
+# env8_d2land
+# env9_ssh
+# env10_sshsd
+# env11_eke
+# env12_d2smt 
+```
+
+
+#Remove NAs from total Env Data
+Check for NAs with pa>0 and pa=0
+```{r}
+
+#find any NAs separately in presences or absences before removing them
+pa1 <- filter(PmEnvTMP, pa > 0)  
+nrow(pa1) == nrow(pmDetsGrid)  ## !!!!!! Check number of presences: Do they match btwn centroid data and grid data?
+pa0 <- filter(PmEnvTMP, pa == 0)
+
+# plot(pa1$dist)
+which(pa1$dist>0)  #any positive depths I need to murder?
+
+
+sum(is.na(pa1))     # Total NA for presences
+(colsum <- colSums(is.na(pa1))) # Total NA per column
+
+
+```
+
+FILL IN MISSING DATA FOR PRESENCES
+```{r}
+####### Replace NAs ######
+#If NA's exist in the env data for presences, sort that out here:
+#This is specifically for SSH, SSHsd, EKE
+
+if(colsum > 0){
+pa1NAssh <- pa1[is.na(pa1$ssh) > 0, ]  #find NAs based on columns in colsum
+pa1NAsshsd <- pa1[is.na(pa1$sshsd) > 0, ]  #find NAs based on columns in colsum
+pa1NAeke <- pa1[is.na(pa1$eke) > 0, ]  #find NAs based on columns in colsum
+
+# pa1NAb <- pa1NA[,1:6] #used for 2017...?
+
+# Since the resolution of the ssh data is ~8km, increasing the search out to 8 km ~ 0.055
+#REPLACE MISSING SSH VALUES
+for (r in 1:nrow(pa1NAssh)) {
+  
+  lonBad <- pa1NAssh[r, 4] #pull out longitude
+  lonPlus <- (lonBad + 0.055) +360
+  lonMinus <- (lonBad - 0.055) +360
+  
+  latBad <- pa1NAssh[r, 5] #pull out latitude
+  latPlus <- (latBad + 0.055) 
+  latMinus <- (latBad - 0.055)
+  
+  #create new vector with cell values around original cell
+  UpLft <- c(lonPlus,  latPlus)
+  UpRt  <- c(lonMinus, latPlus)
+  LoLft <- c(lonPlus,  latMinus)
+  LoRt  <- c(lonMinus, latMinus)
+  
+  #create dataframe with new buffered positions with UTC of original position
+  newPosdf <- as.data.frame(rbind(UpLft, UpRt, LoLft, LoRt))
+  newPosdf$UTC <- pa1NAssh[r,1]
+  colnames(newPosdf) <- c('Longitude', 'Latitude', 'UTC')
+  
+  
+  env9_sshbuff = NULL
+for (i in 1:nrow(newPosdf)){
+ 
+  bufftmp <- which(abs(sshtidya$lon-newPosdf$Longitude[i]) == min(abs(sshtidya$lon-newPosdf$Longitude[i])) & 
+                    abs(sshtidya$lat-newPosdf$Latitude[i]) == min(abs(sshtidya$lat-newPosdf$Latitude[i])) &
+                    abs(sshtidya$date-newPosdf$UTC[i]) == min(abs(sshtidya$date-newPosdf$UTC[i])))
+  sshbuff <- sshtidya[bufftmp[1],] #some had duplicates, so take the first one
+  sshbuff$truelon <- newPosdf$Longitude[i]
+  sshbuff$truelat <- newPosdf$Latitude[i]
+  
+  
+  env9_sshbuff <- rbind(env9_sshbuff, sshbuff)
+}
+
+env9_sshbuff$effCells <- pa1NAssh$effCells[r] #add column with effCell value for the original location
+
+sshbuffMean <- mean(env9_sshbuff$ssh) #take average of new buffered ssh
+#replace missing ssh value for the rth row in pa1NAssh
+pa1NAssh[r, 15] <- mean(env9_sshbuff$ssh)
+}
+
+
+#REPLACE MISSING SSHSD VALUES
+for (r in 1:nrow(pa1NAsshsd)) {
+  
+  lonBad <- pa1NAsshsd[r, 4] #pull out longitude
+  lonPlus <- (lonBad + 0.055) +360
+  lonMinus <- (lonBad - 0.055) +360
+  
+  latBad <- pa1NAsshsd[r, 5] #pull out latitude
+  latPlus <- (latBad + 0.055) 
+  latMinus <- (latBad - 0.055)
+  
+  #create new vector with cell values around original cell
+  UpLft <- c(lonPlus,  latPlus)
+  UpRt  <- c(lonMinus, latPlus)
+  LoLft <- c(lonPlus,  latMinus)
+  LoRt  <- c(lonMinus, latMinus)
+  
+  #create dataframe with new buffered positions with UTC of original position
+  newPosdf <- as.data.frame(rbind(UpLft, UpRt, LoLft, LoRt))
+  newPosdf$UTC <- pa1NAsshsd[r,1]
+  colnames(newPosdf) <- c('Longitude', 'Latitude', 'UTC')
+  
+  
+  env9_sshZbuff = NULL
+for (i in 1:nrow(newPosdf)){
+ 
+  bufftmp <- which(abs(sshZtidya$lon-newPosdf$Longitude[i]) == min(abs(sshZtidya$lon-newPosdf$Longitude[i])) & 
+                    abs(sshZtidya$lat-newPosdf$Latitude[i]) == min(abs(sshZtidya$lat-newPosdf$Latitude[i])) &
+                    abs(sshZtidya$date-newPosdf$UTC[i]) == min(abs(sshZtidya$date-newPosdf$UTC[i])))
+  sshsdbuff <- sshZtidya[bufftmp[1],] #some had duplicates, so take the first one
+  sshsdbuff$truelon <- newPosdf$Longitude[i]
+  sshsdbuff$truelat <- newPosdf$Latitude[i]
+  
+  
+  env9_sshZbuff <- rbind(env9_sshZbuff, sshsdbuff)
+}
+
+env9_sshZbuff$effCells <- pa1NAsshsd$effCells[r] #add column with effCell value for the original location
+
+#replace missing sshsd value with mean for the rth row in pa1NAsshsd
+pa1NAsshsd[r, 16] <- mean(env9_sshZbuff$sshsd)
+}
+
+#REPLACE MISSING EKE VALUES
+for (r in 1:nrow(pa1NAeke)) {
+  
+  lonBad <- pa1NAeke[r, 4] #pull out longitude
+  lonPlus <- (lonBad + 0.055) +360
+  lonMinus <- (lonBad - 0.055) +360
+  
+  latBad <- pa1NAeke[r, 5] #pull out latitude
+  latPlus <- (latBad + 0.055) 
+  latMinus <- (latBad - 0.055)
+  
+  #create new vector with cell values around original cell
+  UpLft <- c(lonPlus,  latPlus)
+  UpRt  <- c(lonMinus, latPlus)
+  LoLft <- c(lonPlus,  latMinus)
+  LoRt  <- c(lonMinus, latMinus)
+  
+  #create dataframe with new buffered positions with UTC of original position
+  newPosdf <- as.data.frame(rbind(UpLft, UpRt, LoLft, LoRt))
+  newPosdf$UTC <- pa1NAeke[r,1]
+  colnames(newPosdf) <- c('Longitude', 'Latitude', 'UTC')
+  
+  
+  env9_ekebuff = NULL
+for (i in 1:nrow(newPosdf)){
+ 
+  bufftmp <- which(abs(ekeZtidya$lon-newPosdf$Longitude[i]) == min(abs(ekeZtidya$lon-newPosdf$Longitude[i])) & 
+                    abs(ekeZtidya$lat-newPosdf$Latitude[i]) == min(abs(ekeZtidya$lat-newPosdf$Latitude[i])) &
+                    abs(ekeZtidya$date-newPosdf$UTC[i]) == min(abs(ekeZtidya$date-newPosdf$UTC[i])))
+  ekebuff <- ekeZtidya[bufftmp[1],] #some had duplicates, so take the first one
+  ekebuff$truelon <- newPosdf$Longitude[i]
+  ekebuff$truelat <- newPosdf$Latitude[i]
+  
+  
+  env9_ekebuff <- rbind(env9_ekebuff, ekebuff)
+}
+
+env9_ekebuff$effCells <- pa1NAeke$effCells[r] #add column with effCell value for the original location
+
+#replace missing eke value with the mean for the rth row in pa1NAeke
+pa1NAeke[r, 17] <- mean(env9_ekebuff$eke)
+}
+
+
+}
+
+
+
+
+```
+
+
+#Merge data
+Get detection numbers and click info for presences. Everything was saved in the '$detections' part of the list for gridEffort. 
+Match up the click info with PmEnv using the gridIndex and effCells (named effCells in 8_GetEnvData.Rmd)
+```{r}
+###
+sum(is.na(pa0))     # Total NA for absences
+colSums(is.na(pa0)) # Total NA per column
+
+
+PmEnv <- PmEnvTMP %>% drop_na()
+PmEnvAbs <- filter(PmEnv, pa == 0)
+PmEnvPres <- filter(PmEnv, pa > 0)
+# PmEnvPres <- rename(PmEnvPres, Longitude = lon, Latitude=lat)
+# PmEnvAbs <- rename(PmEnvAbs, Longitude = lon, Latitude=lat)
+
+
+colSums(is.na(PmEnv)) #CHECK NAs AGAIN, champ
+```
+
+#DATA INSPECTION PLOTS
+```{r}
+
+dataSet = PmEnv
+
+pdf(here::here('figures', paste0('DataInspc1_', surveynum, '_', gridsize, 'km_', loctype, '_raw.pdf')), width=11,height=8)
+
+
+par(mfrow = c(3, 4), mar=c(3,4,2,1), oma=c(0,0,3,1))
+ 
+loopVec <- 7:18  #columns from PmScaled to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[,c(6,j)]
+   
+   plot(datPlot[,2], main = colnames(datPlot)[2], xlab = 'index', ylab='')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Survey: ", surveynum,', ', loctype,' data' ), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+
+dev.off()
+
+
+pdf(here::here('figures', paste0('DataInspc2_', surveynum, '_', gridsize, 'km_', loctype, '_raw.pdf')), width=11,height=8)
+
+par(mfrow = c(3, 4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+ 
+loopVec <- 7:18  #columns from PmScaled to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[,c(6,j)]
+   
+   plot(datPlot[,2], datPlot[,1], main = colnames(datPlot)[2],  ylab='', xlab = '')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Survey: ", surveynum,', ', loctype,' data'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+}
+
+dev.off()
+
+
+
+dataSet = pa1
+
+pdf(here::here('figures', paste0('DataInspc3_', surveynum, '_', gridsize, 'km_', loctype, '_raw.pdf')), width=11,height=8)
+
+par(mfrow = c(3, 4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+ 
+loopVec <- 7:18  #columns from PmScaled to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[,c(6,j)]
+   
+   plot(datPlot[,2], main = colnames(datPlot)[2], xlab = 'index', ylab='')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Survey: ",surveynum,', ', loctype,' data - Positive Whale'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+
+dev.off()
+
+```
+
+#MERGE & SAVE DATA
+Combine data from centroids with aux data from grid detections by cell number
+```{r}
+# connect the centroids for Pm detections and env data with click info from pmDetsGrid
+merge_tmp <- merge(PmEnvPres, pmDetsGrid, by.x = 'effCells', by.y = 'gridIndex')
+
+merge_tmp2 <- dplyr::select(merge_tmp, c(6,2,23,19:22,1,3,45,4,5,43,27,28,36,35,44,29, everything())) #This contains the presences with the env data from the centroid locations
+
+# merge_tmp2 <- dplyr::select(merge_tmp, c(2,23,19:22,1,3,45,4,5,28,27,everything())) #This contains the presences with the env data from the centroid locations
+# spruce this up some more to bind better with the absences
+
+merge_tmp3 <- merge_tmp2 %>% rename(UTC=UTC.x, UTCp = UTC.y, Longitude=Longitude.x, Latitude = Latitude.x, Latitudep = Latitude.y, Longitudep = Longitude.y)
+
+#merge absence data with acoustic encounter data to include all envData with the aux acoustic information
+trythis <- bind_rows(merge_tmp3, PmEnvAbs)
+# trythis$survey = surveynum
+
+(dataname <- paste0(surveynum, '_', gridsize, 'km_', loctype2, '_complete'))
+assign(dataname, trythis)
+
+#save completed file
+saveRDS(assign(dataname, trythis), here::here(paste0('output/envData/', gridsize, ' km-', loctype), dataname))
+
+
+```
+
+
+#Complete Data
+```{r}
+Complete1641 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1641_', gridsize, 'km_', loctype2, '_complete')))
+Complete1641$survey = 1641
+Complete1641$year = 2010
+
+Complete1642 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1642_', gridsize, 'km_', loctype2, '_complete')))
+Complete1642$survey = 1642
+Complete1642$year = 2010
+
+Complete1303 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1303_', gridsize, 'km_', loctype2, '_complete')))
+Complete1303$survey = 1303
+Complete1303$year = 2013
+
+Complete1604 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1604_', gridsize, 'km_', loctype2, '_complete')))
+Complete1604$survey = 1604
+Complete1604$year = 2016
+
+Complete1705 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1705_', gridsize, 'km_', loctype2, '_complete')))
+Complete1705$survey = 1705
+Complete1705$year = 2017
+
+Complete1706 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1706_', gridsize, 'km_', loctype2, '_complete')))
+Complete1706$survey = 1706
+Complete1706$year = 2017
+
+#Added in presence row with pa=2 that got dropped somewhere...
+# combine1705 <- bind_rows(Complete1705b, Complete1705)
+# saveRDS(assign(dataname, combine1705), here::here(paste0('output/envData/', gridsize, ' km-', loctype), dataname))
+
+CompleteTotal <- bind_rows(Complete1641, Complete1642, Complete1303, Complete1604, Complete1705, Complete1706)   
+
+#convert Longitude of centroids to 0-360
+CompleteTotal$Longitude <- ifelse(CompleteTotal$Longitude<0, CompleteTotal$Longitude+360, CompleteTotal$Longitude)
+CompleteTotal$lon_trk <- ifelse(CompleteTotal$lon_trk<0, CompleteTotal$lon_trk+360, CompleteTotal$lon_trk)
+
+CompleteTotal <- CompleteTotal[ , -c(15,18)]  #extra lat lon cols don't need
+ 
+#filter out distances based on closest distance of a whale
+d2land2 <- data.frame(d2land$ID, d2land$survey, d2land$acid,d2land$bath_m, d2land$dist, d2land$peak)
+max(d2land2$d2land.dist)
+CompleteTotal <- filter(CompleteTotal, dist <= -15)
+
+sum(is.na(CompleteTotal[,18:29]))     # Total NA for env data columns
+colSums(is.na(CompleteTotal[,18:29])) # Total NA per column
+
+
+saveRDS(CompleteTotal, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_raw.rda')))
+
+```
+
+#Scale data
+```{r}
+#FILTER, SCALE and CENTER PREDICTORS
+
+#9/13/20: filter out distances based on closest distance of a whale (DONE ABOVE)
+# d2land2 <- data.frame(d2land$ID, d2land$survey, d2land$acid,d2land$bath_m, d2land$dist, d2land$peak)
+# max(d2land2$d2land.dist)
+# CompleteTotal <- filter(CompleteTotal, dist <= -15)
+# saveRDS(CompleteTotal, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '.rda')))
+
+
+CompletePreds <- dplyr::select(CompleteTotal, sst:d2smt)
+CompleteScaledtmp <- scale(CompletePreds, scale = TRUE)
+
+CompleteScaled <- data.frame(dplyr::select(CompleteTotal, pa:distance), CompleteScaledtmp, dplyr::select(CompleteTotal, peak:year))
+
+write.csv(CompleteScaled, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.csv')), row.names = FALSE)
+
+saveRDS(CompleteScaled, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda')))
+
+
+```
+
+
+
+#OLD THINGS -----------
+
+#FOR 700m EDIT:
+Load and bind data from all surveys
+```{r}
+Complete1641 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1641_', gridsize, 'km_', loctype2, '_complete700')))
+
+Complete1303 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1303_', gridsize, 'km_', loctype2, '_complete700')))
+
+Complete1604 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1604_', gridsize, 'km_', loctype2, '_complete700')))
+
+Complete1705 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1705_', gridsize, 'km_', loctype2, '_complete700')))
+
+Complete1706 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1706_', gridsize, 'km_', loctype2, '_complete700')))
+
+
+CompleteTotal700 <- bind_rows(Complete1641, Complete1303, Complete1604, Complete1705, Complete1706)   
+
+sum(is.na(CompleteTotal700[,15:26]))     # Total NA for env data columns
+colSums(is.na(CompleteTotal700[,15:26])) # Total NA per column
+
+
+saveRDS(CompleteTotal700, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_raw700.rda')))
+
+```
+
+
+
+
+A little extra clean-up
+```{r}
+env5_bath = filter(env5_bath, bath_m < -100)
+env12_d2smt   <- filter(env12_d2smt, effCells %in% env5_bath$effCells)
+env1_sst   <- filter(env1_sst, effCells %in% env5_bath$effCells)
+env2_chla   <- filter(env2_chla, effCells %in% env5_bath$effCells)
+env3_godas600 <- filter(env3_godas600, effCells %in% env5_bath$effCells)
+env4_ww3 <- filter(env4_ww3, effCells %in% env5_bath$effCells)
+env67_slpasp <- filter(env67_slpasp, effCells %in% env5_bath$effCells)
+env8_d2land <- filter(env8_d2land, effCells %in% env5_bath$effCells)
+env9_ssh <- filter(env9_ssh, effCells %in% env5_bath$effCells)
+env10_sshsd <- filter(env10_sshsd, effCells %in% env5_bath$effCells)
+env11_eke <- filter(env11_eke, effCells %in% env5_bath$effCells)
+
+
+saveRDS(env12_d2smt, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_dist2smt.rda')))
+saveRDS(env1_sst, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_sst.rda')))
+saveRDS(env2_chla, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_chla.rda')))
+saveRDS(env3_godas600, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_temp600.rda')))
+saveRDS(env4_ww3, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_wavepow.rda')))
+saveRDS(env67_slpasp, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_slpasp.rda')))
+saveRDS(env8_d2land, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_d2land.rda')))
+saveRDS(env9_ssh, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_ssh.rda')))
+saveRDS(env10_sshsd, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_sshsd.rda')))
+saveRDS(env11_eke, here::here('output/envData/10 km-localized', paste0(surveynum, '_', gridsize, 'km_eke.rda')))
+
+```
+

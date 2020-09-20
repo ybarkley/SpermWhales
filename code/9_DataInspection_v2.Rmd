@@ -1,0 +1,352 @@
+---
+title: "CHECK SHIT"
+author: "Yvonne Barkley"
+date: "9/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+surveynum = 1641
+gridsize = 10
+loctype = 'localized'
+loctype2 = 'loc'
+
+```
+
+```{r}
+#load grid data
+gridEffortOLD <- readRDS(here::here(paste0('output/gridEffort/OLD/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+
+
+#load centroid locations
+centroidAllOLD <- readRDS(here::here(paste0('output/centroids/OLD/', gridsize, ' km-', loctype), paste0('centroids',  surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+
+```
+
+
+```{r}
+x <- gridEffortOLD
+actualArea <- as.numeric(st_area(x$grid))
+coveragePct <- round(x$effort$area / actualArea, 3)
+coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
+
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECK.pdf')), width=11,height=8)
+
+plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.1)
+points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=15, cex = 0.05)
+# points(x=pmDetsub$Longitude, y=pmDetsub$Latitude, col='green', pch=1, cex=0.1, lwd=0.1)
+# text(pmDetsub$Longitude, pmDetsub$Latitude,col='magenta', labels=pmDetsub$acid, cex=0.1, lwd = 0.1 )
+points(centroidAllOLD$lon, centroidAllOLD$lat, col='red', pch = 19, cex=0.1, lwd=0.1)
+#plot detections and their centroids missing effort
+# text(x=effchg$Longitude, y=effchg$Latitude	, col='magenta', labels=effchg$acid, cex=0.1, lwd = 0.1 )
+# points(x=effchg$Longitude, y=effchg$Latitude	, col='orange', pch = 19, cex=5, lwd = 0.07 )
+# text(GridCentJoin$lon, GridCentJoin$lat, col='darkviolet', labels=GridCentJoin$Dir, cex=0.1, lwd=0.1)
+
+#plot detections missing in the centroid data
+# text(x=CentMiss$Longitude, y=CentMiss$Latitude	, col='magenta', labels=CentMiss$acid, cex=0.1, lwd = 0.1 )
+#  points(x=CentMiss$Longitude, y=CentMiss$Latitude	, col='orange', pch = 19, cex=0.07, lwd = 0.07 )
+
+dev.off()
+
+```
+
+
+#check bathy data
+```{r}
+surveynum = 1705
+gridsize = 10
+loctype = 'localized'
+loctype2 = 'loc'
+
+#Load rda from gridding
+sw=readRDS(here::here(paste0('output\\centroids\\', gridsize, ' km-', loctype), paste0('centroids', surveynum, '_', gridsize, 'km_', loctype2, '.rda'))) 
+
+bathycheck <- readRDS(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll.rda'))
+
+#load grid data
+gridDets <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+gridDets <- gridDets$detections 
+
+
+swdat1=sw[,c(1:3, 5:8)]
+swdat2=bathycheck[,c(1,6)]
+
+swdat3=distinct(merge(swdat1, swdat2, by='effCells', all.x=TRUE))  #merge without getting duplicates
+swdat3_pa1 = filter(swdat3, pa==1)
+swdat3_pa0 = filter(swdat3, pa==0)
+
+hist(swdat3$bath_m, main= paste('All Bathymetry', surveynum))
+hist(swdat3_pa1$bath_m, main = paste("Bathymetry of Whale", surveynum))
+hist(swdat3_pa0$bath_m, main = paste("Bathymetry of Absences", surveynum))
+
+env5_bathAll <- env5_bath
+tmp <- filter(swdat3_pa0, bath_m < -1000)
+tmp2 = rbind(swdat3_pa1, tmp)
+env5_bath=tmp2
+
+```
+
+Look at the 'complete' data to see if detections were removed for 1705 and 1706. Compare it to 'swdat3_pa1'
+```{r}
+dataCheck <- filter(`1705_10km_loc_complete`, pa == 1)
+
+print('Do all cells with whales occur in the final dataset?')
+
+if (all(gridDets$gridIndex %in% dataCheck$effCells)==FALSE){
+  (diffCell <- setdiff(gridDets$gridIndex, dataCheck$effCells))  #which effCell is it?
+# gridDets$gridIndex[!(gridDets$gridIndex %in% dataCheck$effCells)] #Same thing as an example
+  diffCelldat <- gridDets[gridDets$gridIndex == diffCell,]
+  print(paste('effCells =', diffCell, 'are less than 1000 m'))
+} else {
+  print('All cells with whales are included')
+}
+```
+
+Inspect number of absences in the 700-1000 m range. This is stupid.
+```{r}
+
+bathAll1303  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(1303, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+bathAll1604  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(1604, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+bathAll1641  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(1641, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+bathAll1705  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(1705, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+bathAll1706  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(1706, '_', gridsize, 'km_', loctype2, '_bathyAll.rda')))
+
+bathyAll <- bind_rows(bathAll1303, bathAll1604, bathAll1641, bathAll1705, bathAll1706)
+bathyFilt <- filter(bathyAll, bath_m <= 1000 & bath_m>700)
+
+head(env1_sst[, c(1:3, 5:7,8)])
+
+bathFilt1303 <- filter(bathAll1303, bath_m >=-1000 & bath_m <= -700)
+bathFilt1604 <- filter(bathAll1604, bath_m >=-1000 & bath_m <= -700)
+bathFilt1641 <- filter(bathAll1641, bath_m >=-1000 & bath_m <= -700)
+bathFilt1705 <- filter(bathAll1705, bath_m >=-1000 & bath_m <= -700)
+bathFilt1706 <- filter(bathAll1706, bath_m >=-1000 & bath_m <= -700)
+
+
+nrow(filter(bathAll1604, bath_m >=-1000 & bath_m <= -700))
+nrow(filter(bathAll1641, bath_m >=-1000 & bath_m <= -700))
+nrow(filter(bathAll1705, bath_m >=-1000 & bath_m <= -700))
+nrow(filter(bathAll1706, bath_m >=-1000 & bath_m <= -700))
+surveynum = 1
+
+
+saveRDS(bathFilt1303, paste0('output/envData/', gridsize, ' km-', loctype, '/', 1303, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda'))
+saveRDS(bathFilt1604, paste0('output/envData/', gridsize, ' km-', loctype, '/', 1604, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda'))
+saveRDS(bathFilt1641, paste0('output/envData/', gridsize, ' km-', loctype, '/', 1641, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda'))
+saveRDS(bathFilt1705, paste0('output/envData/', gridsize, ' km-', loctype, '/', 1705, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda'))
+saveRDS(bathFilt1706, paste0('output/envData/', gridsize, ' km-', loctype, '/', 1706, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda'))
+
+
+```
+
+WHY DOES THIS ONE ENCOUTNER FROM 1706 have a POSITIVE DISTANCE TO LAND???
+Resolved. Was using wrong Lats after filtering for bath < -1000 at the time
+```{r}
+
+env8_d2land = NULL
+
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(dist_slice$lon-201.9351) == min(abs(dist_slice$lon-201.9351)) & 
+                    abs(dist_slice$lat-22.39074) == min(abs(dist_slice$lat-22.39074)))
+  dtmp <- dist_slice[lontmp[1],] #some had duplicates, so take the first one
+  dtmp$true_lon <- lon[i]
+  dtmp$true_lat <- lat[i]
+  dtmp$effCells <- sw$effCells[i]
+  
+  env8_d2land <- rbind(env8_d2land, dtmp)
+}
+
+
+
+
+```
+
+
+Joining rows in 1303?
+Not sure what this is about.
+```{r}
+
+
+env1_sst2      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_sst.rda')))
+env1_sst      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype, 'KEEP2'), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_sst2.rda')))
+
+env2_chla2    <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_chla.rda')))
+env2_chla      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype, 'KEEP2'), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_chla2.rda')))
+
+
+env3_godas6002 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_temp600.rda')))
+env4_ww32      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_wavepow.rda')))
+env5_bath     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_bathy.rda')))
+
+# env5_bath     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_bathyAll700.rda')))
+
+env67_slpasp2  <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_slpasp.rda')))
+env8_d2land2   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_d2land.rda')))
+env9_ssh2      <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_ssh.rda')))
+env10_sshsd2   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_sshsd.rda')))
+env11_eke2     <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_eke.rda')))
+env12_d2smt2   <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0(surveynum, '_', gridsize, 'km_', loctype2, '_dist2smt.rda')))
+
+
+env1_sst3 <- rbind(env1_sst2, env1_sst)
+saveRDS(env1_sst3, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_sst.rda')))
+
+env2_chla3<- rbind(env2_chla2, env2_chla)
+saveRDS(env2_chla3, here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_chla.rda')))
+
+env3_godas600 <- rbind(env3_godas6002, env3_godas600) #saved
+env4_ww3 <- rbind(env4_ww32,env4_ww3) #saved
+env5_bath
+env67_slpasp <- rbind(env67_slpasp2,env67_slpasp) #saved
+env8_d2land <- rbind(env8_d2land2, env8_d2land) #saved
+env9_ssh <- rbind(env9_ssh2, env9_ssh) #saved
+env10_sshsd <- rbind(env10_sshsd2, env10_sshsd) #saved
+env11_eke <- rbind(env11_eke2, env11_eke) #saved
+env12_d2smt
+
+```
+
+1705 localized has mismatch between bath and rest of envdata, difference in row number by 2 rows!
+1303 trackline also has mismatch of 1 row!
+```{r}
+
+#find the duplicate effCells that don't exist in bath data but do exist in the 'sw' data for 1705
+look <- env10_sshsdSORT$effCells[duplicated(env10_sshsdSORT$effCells)]
+# look <- env1_sstSORT$effCells[duplicated(env1_sstSORT$effCells)]
+
+table(look)==1
+
+look2 <- env5_bathSORT$effCells[duplicated(env5_bathSORT$effCells)]
+table(look2)==1
+
+#This shows which effCells are in sw but not in bath, the 2 extra absences that I can't explain. Get rid of them!
+dupsCells = look[!(look %in% look2)]
+
+
+# Putting it together WITHOUT bathy data to then remove the extra rows (absences) from the other vars and save them as the rda
+PmEnvTMP2 = data.frame(env1_sstSORT[, c(1:3, 5:7,9)], `chla`=env2_chlaSORT[, 9], `temp600`=env3_godasSORT[,5], `wavepow`=env4_ww3SORT[,9], `slope`=env67_slpaspSORT[,3], `aspect`=env67_slpaspSORT[,4], 'd2land'=env8_d2landSORT[,1], `ssh`=env9_sshSORT[,4], `sshsd`=env10_sshsdSORT[,4], `eke`=env11_ekeSORT[,4], `d2smt`=env12_d2smtSORT[,2])
+look3 <- filter(PmEnvTMP2, effCells == dupsCells)
+look3b <- filter(gridEffort$detections, gridIndex == dupsCells)
+
+
+sw=readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype, '/', 
+                                           surveynum, '_', gridsize, 'km_', loctype2, '_sw.rda' )))
+rmrow <- which(sw$effCells == dupsCells)
+
+sw <- sw[-rmrow[2],] #remove the correct row
+
+rmrow  
+  which(env12_d2smt$effCells == dupsCells)
+
+look3[2,1] #need to remove this since it's the absence, not the whale
+
+#For Duplicates in 1705 10km localized 
+#Save each variable individually using the save code in GetEnvData_..._v6
+env1_sst <- env1_sst[-rmrow[2],]
+env2_chla<- env2_chla[-rmrow[2],]
+env3_godas600<- env3_godas600[-rmrow[2],]
+env4_ww3<- env4_ww3[-rmrow[2],]
+env67_slpasp<- env67_slpasp[-rmrow[2],]
+env8_d2land<- env8_d2land[-rmrow[2],]
+env9_ssh<- env9_ssh[-rmrow[2],]
+env10_sshsd<- env10_sshsd[-rmrow[2],]
+env11_eke<- env11_eke[-rmrow[2],]
+env12_d2smt<- env12_d2smt[-rmrow[2],]
+saveRDS(env12_d2smt, paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_dist2smt.rda'))
+saveRDS(env2_chla, paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_10km_',loctype2, '_chla.rda'))
+saveRDS(env1_sst, paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_10km_',loctype2, '_sst.rda'))
+
+
+# Minor Change for 1641: Move wavepow col to #9, SAVE IT. 
+env4_ww3 <- env4_ww3[, c(1:8, 33, 9:32)]
+
+
+#For 1303 10 km trackline, remove duplicate that is the absence
+env1_sst <- subset(env1_sst, UTC != look3[2,1])
+env2_chla<- subset(env2_chla, UTC != look3[2,1])
+env3_godas600<- subset(env3_godas600, effCells != dupsCells)
+env4_ww3<- subset(env4_ww3, UTC != look3[2,1])
+env67_slpasp<- subset(env67_slpasp, UTC != look3[2,1])
+env8_d2land<- subset(env8_d2land, UTC != look3[2,1])
+env9_ssh<- subset(env9_ssh,  UTC != look3[2,1])
+env10_sshsd<- subset(env10_sshsd,  UTC != look3[2,1])
+env11_eke<- subset(env11_eke,  UTC != look3[2,1])
+env12_d2smt<- subset(env12_d2smt,  UTC != look3[2,1])
+
+
+
+
+```
+
+Truncate by distance to shore?
+```{r}
+d2land <- filter(CompleteTotal, pa >0)
+d2land2 <- data.frame(d2land$ID, d2land$survey, d2land$acid,d2land$bath_m, d2land$dist, d2land$peak)
+d2land3 <- filter(CompleteTotal, dist <= -15)
+118/nrow(d2land3)*100
+
+```
+
+
+#LOOK AT COMPLETE DATA (Don't, incorporated it in DataCleanup 9/11/20)
+```{r}
+
+CompleteSet = Complete1303
+
+
+par(mfrow = c(3, 4))
+ 
+loopVec <- 20:31  #columns from PmScaled to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- CompleteSet[,j]
+   
+   plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+
+}
+
+par(mfrow=c(3,4))
+plot(CompleteSet$sst)
+hist(CompleteSet$sst)
+
+plot(CompleteSet$chla)
+hist(CompleteSet$chla)
+
+plot(CompleteSet$temp600)
+hist(CompleteSet$temp600)
+
+plot(CompleteSet$wavepow)
+hist(CompleteSet$wavepow)
+
+plot(CompleteSet$bath_m)
+hist(CompleteSet$bath_m)
+
+plot(CompleteSet$slope)
+hist(CompleteSet$slope)
+
+
+plot(CompleteSet$aspect)
+hist(CompleteSet$aspect)
+
+plot(CompleteSet$dist)
+hist(CompleteSet$dist)
+
+plot(CompleteSet$ssh)
+hist(CompleteSet$ssh)
+
+plot(CompleteSet$sshsd)
+hist(CompleteSet$sshsd)
+
+plot(CompleteSet$eke)
+hist(CompleteSet$eke)
+
+plot(CompleteSet$d2smt)
+hist(CompleteSet$d2smt)
+```
+
