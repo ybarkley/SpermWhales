@@ -23,8 +23,8 @@ library(Distance)
 
 ##Load parameters
 ```{r}
-surveynum = 1642
-gridsize = 10
+surveynum = 1641
+gridsize = 25
 loctype = 'allsw'
 loctype2 = 'all'
 
@@ -39,7 +39,7 @@ To revisit a data set:
 Then proceed to 'GRID QC' chunk below.
 ```{r}
 #load grid data
-gridEffort <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+gridEffort <- readRDS(here::here( paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda') ))
 
 gridEffortNEW <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, 'NEW.rda')))
 gridEffortOLD <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, 'OLD.rda')))
@@ -62,7 +62,7 @@ centroidAll <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', 
 gpsAll <- read.csv(paste0('./output/straightPath results/straightPathWeffort_', surveynum, '.csv'), stringsAsFactors = FALSE) 
 
 # gpsAll <- gpsAll %>% mutate_if(is.character, str_trim) #white space after join.veffort!?!?
-gpsAll$effort <- gpsAll$straight == TRUE & gpsAll$join.aeffort == "on" | gpsAll$join.veffort =="on"
+gpsAll$effort <- gpsAll$straight == TRUE & (gpsAll$join.aeffort == "on" | gpsAll$join.veffort =="on")
 gpsAll$Longitude <- ifelse(gpsAll$Longitude <= 0, gpsAll$Longitude + 360, gpsAll$Longitude)
 gpsAll$UTC <- lubridate::ymd_hms(gpsAll$UTC)
 ```
@@ -444,7 +444,16 @@ SGL_prz <- dplyr::select(sgl_prz, `UTC` = start, everything(), -end)
 
 ALLcentroids <- rbind(DBL_prz, SGL_prz, DBL_abz, SGL_abz)
 ALLcentroids$survey <- surveynum
+```
+##CHECK FOR NA
+```{r}
 
+sum(is.na(ALLcentroids))     # Total NA for presences
+(colsum <- colSums(is.na(ALLcentroids))) # Total NA per column
+ALLcentroids<- ALLcentroids[complete.cases(ALLcentroids), ]
+```
+##Save
+```{r}
 nrow(pmDetsub) #number of detections
 nrow(dplyr::filter(ALLcentroids, pa > 0)) #should equal number of detections
 print('Do the number of encounters match the number of centroids with encounters?')
@@ -472,7 +481,7 @@ actualArea <- as.numeric(st_area(x$grid))
 coveragePct <- round(x$effort$area / actualArea, 3)
 coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
 
-pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECK.pdf')), width=11,height=8)
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECKAC.pdf')), width=11,height=8)
 
 plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.2)
 points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=16, cex = 0.1)

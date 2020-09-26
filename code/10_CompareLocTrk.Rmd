@@ -1,0 +1,376 @@
+---
+title: "GAMs for Sperm Whales"
+author: "Yvonne Barkley"
+date: "7/6/2020"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+Load libraries
+```{r,eval=FALSE,echo=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+```
+
+```{r}
+gridsize = 10
+loctype = 'localized'
+loctype2 = 'loc'
+loctype = 'trackline'
+loctype2 = 'trk'
+
+PmScaled <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda')))
+
+PmScaledTrk <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda')))
+###testing things with DUMMY data
+# PmScaledOLD <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledOLD.rda')))
+
+#add column for log effort as offset
+PmScaled$log.effort	= log(PmScaled$EffArea)
+
+nrow(filter(PmScaled, pa > 0)) #how many presences? should be 118
+
+# pairs(PmScaled[,15:26])
+```
+
+Check correlation of covariates
+```{r, echo=FALSE, eval=FALSE}
+corrplot.mixed(cor(PmScaled[,18:29]), upper="number", lower="circle")
+
+```
+
+#Plot the data, see what's happening
+```{r,eval=FALSE}
+# par(mfrow = c(1,1))
+# with(CompleteTotal, plot(pa~bath_m))
+
+require(ggplot2)
+source('./code/multiplot.r') 
+
+
+loopVec <- 18:29  #columns from PmScaled to plot
+ 
+# par(mfrow = c(1, 3), mar=c(3,3,1,1), oma=c(0,0,3,1))
+ ksResults=NULL
+for (j in loopVec){
+   
+   datPlot <- PmScaled[,c(1,j,38)]  #get dataframe of pa and variable j
+   datPlotTrk <- PmScaledTrk[,c(1,j,38)] #the whales here are the trackline positions
+   
+   # datPlotAll <- bind_rows(datPlot, datPlotTrk)
+   #normal plot
+   # plot(datPlot[,2], datPlot[,1], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'whales per cell')
+   
+# 
+#    ptplt <-  ggplot(datPlot, aes(datPlot[,2],datPlot[,1], colour=as.factor(datPlot[,1]))) +
+#        geom_point() +   
+#      theme(legend.position ="none") +
+#        xlab(paste("scaled",colnames(datPlot)[2]) ) +
+#        ylab('whales per cell')+
+#        # scale_colour_discrete(name='',labels = c('Whales Absent', 'Whales Present'))+
+# theme_bw() +
+#   guides(colour=FALSE)
+#    
+#    #histogram
+#    # hist(datPlot[,2], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'frequency', main='' )
+#    
+#    histplt <- ggplot(datPlot, aes(datPlot[,2], fill=as.factor(datPlot[,1]))) +
+#      geom_histogram(colour='black', binwidth = 0.5) +
+#     xlab(paste("scaled",colnames(datPlot)[2]) ) +
+#     ylab('Frequency') +
+#      scale_fill_discrete(name = '', labels = c('Whales Absent', 'Whales Present'))+
+#      theme_bw() +
+#      theme(legend.position ="top") 
+
+   
+   #do KS test and plot
+   datPlot1 <- filter(datPlot, pa >0) #whales localized
+   datPlot1[,3] <- 1 #localized
+   # datPlot0 <- filter(datPlot, pa ==0)
+   datPlot1trk <- filter(datPlotTrk, pa >0) #whales trackline
+   datPlot1trk[,3] <- 0 #trackline
+
+   datPlot1all <- bind_rows(datPlot1, datPlot1trk)
+
+   datKS <- ks.test(datPlot1[,2], datPlot1trk[, 2])
+     cdf0 <- ecdf(datPlot1trk[,2]); cdf1 <- ecdf(datPlot1[,2]) #make cdfs for the localized and trackline whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(datPlot1trk[,2], datPlot1[,2]), max(datPlot1trk[,2], datPlot1[,2]), length.out=length(datPlot1[,2])) 
+   
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0)
+   
+  ksplt <- ggplot(datPlot1all, aes(x = datPlot1all[,2], group = datPlot1all[,3], color = as.factor(datPlot1all[,3]))) + #
+  stat_ecdf(size=1) +
+    theme_bw() +
+    theme(legend.position ="top", plot.title = element_text(hjust= 0.5)) +
+    xlab(paste("scaled",colnames(datPlot)[2]) ) +
+    ylab("ECDF") +
+    scale_colour_discrete(name='',labels = c('Trackline Whales', 'Localized Whales')) +
+    #geom_line(size=1) +
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+        linetype = "dashed", color = "red") +
+    geom_point(aes(x = x0[1] , y= y0[1]), color="red", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="red", size=2) +
+    ggtitle("K-S Test") +
+    # theme(legend.title=element_blank()) +
+     # scale_colour_discrete(name = 'Distribution Type', labels = c('Whales Absent', 'Whales Present'))+
+    annotate("text",x=max(datPlot[,2])-1,y=min(datPlot[,1])+0.1, hjust=.2,label=paste('D=',round(datKS[1]$statistic,2))) +
+    annotate("text",x=max(datPlot[,2])-1,y=min(datPlot[,1])+0.05, hjust=.2,label=paste('p=',round(datKS$p.value,3)))
+
+Cairo(here::here('figures', paste0('DataPlotsCompare_', gridsize, 'km_', loctype,'_', colnames(datPlot)[2], '.png')), width=14,height=6,
+    units='in', dpi=300, bg='white')
+  # multiplot(ptplt, histplt, ksplt, cols=3)
+    multiplot(ksplt, cols=1)
+
+ dev.off()
+  
+   # ggsave(paste('DataPlots_',colnames(datPlot)[2],'.png'))
+  
+  }
+
+```
+
+
+#split the data into train and test sets
+```{r, eval=FALSE, echo=FALSE}
+# split datasets into 70% train and 30% test (i.e., independent)
+dat <- read.csv("DATA PATH")
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+dat.splits <- splitdf(dat, seed=808) #setting seed allow reproducible result
+dat.train <- dat.splits$trainset
+dat.test <- dat.splits$testset
+```
+
+#KS Test
+For distributions to be significantly different, p-value < 0.05.
+
+This compares the distributions of each env data variable between all absences and the whale positive cells. 
+It is also set up to take a sample of the absences (samp_pa0) equal to the nrow of the whale+ cells.
+Sent to Jeff P. to take a look.
+https://rpubs.com/mharris/KSplot  -  Used this site for plot code.
+
+The second part uses KS test to compare the distributions of the env vars between the cells using the localized whale positions and the cells of the same whales but using the cells associated with their position on the trackline. This will evaluate whether the env data are truly different for whales localized at greater distances from the ship. 
+```{r}
+require(Cairo)
+#PART 1: Using the localized whale and sighting data, compare the distributions of env data between whale+ and whale- cells
+#Separate the whale+ and whale- cells
+ks_pa0 <- filter(PmScaled, pa ==0)
+ks_pa1 <- filter(PmScaled, pa > 0)
+#Pull out just the covariates for whales and absences
+ks_var0 <- ks_pa0[, 18:29]
+ks_var1 <- ks_pa1[, 18:29]
+
+#PART 2: Compare distributions between the localized and trackline points for the same whales
+ks_trk <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-trackline/CompletePm_', gridsize, 'km_trk_scaled.rda')))
+ks_trk1 <- filter(ks_trk, pa > 0)
+
+
+
+Cairo(here::here('figures', paste0('KStests_', gridsize, 'km_', loctype, '_allAbs300b.png')), width=6,height=4,
+    units='in', dpi=300, bg='white')
+
+par(mfrow = c(3, 4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+
+for (v in 1:length(ks_var0)){ #for each variable
+     
+  samp_pa0 <- ks_var0[,v] #take a sample of the variable from the absences df to equal the number of samples of positive whales
+  # samp_pa0 <- sample(ks_var0[, v], nrow(ks_pa1)) #take a sample of the variable from the absences df to equal the number of samples of positive whales
+
+  ksSW <- ks.test(samp_pa0, ks_var1[, v])        #do the KS test for the variable
+    
+  cdf0 <- ecdf(samp_pa0); cdf1 <- ecdf(ks_var1[,1]) #make cdfs for the absences and whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(samp_pa0, ks_var1[, v]), max(samp_pa0, ks_var1[, v]), length.out=length(samp_pa0)) 
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0) 
+  
+ plot(cdf0, verticals=TRUE, do.points=FALSE, col="blue", main = paste(colnames(ks_var1[v]), '(pval=',signif(ksSW$p.value,2 ),')'), ylab = "CDF", xlab = 'scaled variable', cex.main = 0.75, cex.axis = 0.75, cex.lab = 0.8 ) 
+ plot(cdf1, verticals=TRUE, do.points=FALSE, col="green", add=TRUE) 
+ points(c(x0, x0), c(y0, y1), pch=16, col="red", cex=0.7) 
+ segments(x0, y0, x0, y1, col="red", lty="dotted", cex = 0.6) 
+ # text(0, 0.1, paste('pval = ',signif(ksSW$p.value,2 )), cex = 1, lwd=0.8, pos=3)
+ mtext('KS Tests', side=3, line=1, outer=TRUE, cex=1, font=1)
+
+}
+
+dev.off()
+   
+
+
+
+
+```
+
+
+#GAM
+Thin-plate regression splines are the default which give 10 raw parameters per 1D smoother.
+
+##Negative Binomial
+```{r, eval=FALSE}
+# colnames(PmScaled)
+
+#No 2D smoother for longitude and latitude
+gamnb_full <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = nb)
+
+#Includes 2D smoother for longitude and latitude
+ptm=proc.time()
+gamnb_fullb <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude), data = PmScaled, family = nb)
+(min_wavepow=proc.time()-ptm) 
+min_wavepow[3]/60
+
+#Includes 2D smoother & year (survey)
+gamnb_fullc <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
+
+gamnb_fullc <- gam(pa ~ s(bath_m, bs='cr', k=3) + s(sst, bs='cr', k=3) + s(chla, bs='cr', k=3) + s(temp600, bs='cr', k=3) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
+
+```
+
+
+```{r}
+#No 2D smoother
+summary(gamnb_full)
+
+par(mfrow=c(2,2))
+plot(gamnb_full, pages=2)
+
+gam.check(gamnb_full)
+
+#Includes 2D smoother
+summary(gamnb_fullb)
+
+par(mfrow=c(2,2))
+plot(gamnb_fullb, pages=3)
+
+gam.check(gamnb_fullb)
+
+#Includes 2D smoother and year
+summary(gamnb_fullc)
+plot(gamnb_fullc, pages =3)
+par(mfrow=c(2,2))
+gam.check(gamnb_fullc)
+
+# plot(allEffects(model, partial.residuals = TRUE))
+```
+
+###Variogram 
+*How similar are the residuals relative to their distance from each other in space?
+  This tests for autocorrelation. If nearby residuals are similar due to unmeasured env effects, for example, the variogram will show a pattern where there are lower values at lower distances and then an increase at farther distances. 
+```{r}
+vnb_full <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_full, type = 'pearson'))
+plot(vnb_full)
+
+vnb_fullb <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullb, type = 'pearson'))
+plot(vnb_fullb)
+
+vnb_fullc <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullc, type = 'pearson'))
+plot(vnb_fullc)
+
+```
+
+#Examine Spatial Autocorrelation
+```{r}
+
+#let's try looking at the spatial auto in model residuals
+
+
+
+
+
+
+
+
+```
+
+##Tweedie
+```{r, eval=FALSE}
+# colnames(PmScaled)
+
+#No 2D smoother for longitude and latitude
+gamtw <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = tw)
+
+#Includes 2D smoother for longitude and latitude
+gamtwb <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude), data = PmScaled, family = tw)
+
+#Includes 2D smoother & year (survey)
+gamtwc <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = tw)
+
+```
+
+
+```{r}
+#No 2D smoother
+summary(gamtw)
+plot(gamtw, pages=2)
+par(mfrow=c(2,2))
+gam.check(gamtw)
+
+#Includes 2D smoother
+# summary(gamtwb)
+# plot(gamtwb, pages=3)
+# par(mfrow=c(2,2))
+# gam.check(gamtwb)
+# 
+# #Includes 2D smoother and year
+# summary(gamtwc)
+# plot(gamtwc, pages =3)
+# par(mfrow=c(2,2))
+# gam.check(gamtwc)
+
+
+```
+
+
+```{r, echo=FALSE, eval=FALSE}
+
+v1 <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gam_fullb,type = 'pearson'))
+
+plot(v1)
+
+v2 <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gam_fullc,type = 'pearson'))
+
+plot(v2)
+
+```
+
+##First attempts
+```{r, echo=FALSE,eval=FALSE}
+mod_gam1b <- gam(pa ~ s(bath_m, bs = 'cr'), data = PmScaled, family = negbin(3))
+summary(mod_gam1b)
+plot(mod_gam1b)
+
+#with smoother for spatial autocorrelation using centroid locations
+mod_gam2 <- gam(pa ~ s(bath_m)+s(Longitude, Latitude), data = PmScaled, family = negbin(3))
+summary(mod_gam2)
+plot(mod_gam2)
+
+mod_gam3 <- gam(pa ~ s(bath_m)+s(Longitude, Latitude), data = PmScaled, family = negbin(3))
+summary(mod_gam3)
+plot(mod_gam3, residuals)
+gam.check(mod_gam3)
+```
+
+
+## Plotting 
+```{r, echo=FALSE,eval=FALSE}
+#from http://environmentalcomputing.net/intro-to-gams/
+ggplot(Sample_data, aes(x, y)) + geom_point() + geom_smooth(method = "gam", formula = y ~s(x))
+
+
+plot.gam()
+```
+

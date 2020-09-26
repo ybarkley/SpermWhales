@@ -570,6 +570,8 @@ plotGridResult <- function(x) {
     points(x=x$detections$Longitude, y=x$detections$Latitude, col='red')
 }
 
+
+
 # effArea <- purrr::reduce(areaList, `+`)
 # realArea <- as.numeric(st_area(grid))
 # coveragePct <- round(effArea/realArea, 3) * 100
