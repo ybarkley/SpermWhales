@@ -8,48 +8,60 @@ output:
 editor_options:
   chunk_output_type: console
 ---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  comment = '', fig.width =8, fig.height = 6
+)
+```
+
 Load libraries
-```{r,eval=FALSE,echo=FALSE}
+```{r, echo=FALSE}
 library(tidyverse)
 library(mgcv)
 library(corrplot)
 library(geoR)
 library(tidymv)
+library(here)
 ```
 
-
+Load universal variables
 ```{r}
-
+#Values used for file and directory names
+survey = 'AllSurveys'
 gridsize = 25
 loctype = 'AcOnly'
 loctype2 = 'Ac'
-# loctype = 'trackline'
-# loctype2 = 'trk'
 
+```
+
+
+Load data
+```{r}
 PmScaled <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
 PmRaw <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
 
 CompletePreds <- dplyr::select(PmRaw, sst:d2smt)
 # PmScaled <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledNEW.rda')))
 
-
-###testing things with DUMMY data
-# PmScaledOLD <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledOLD.rda')))
-
 #add column for log effort as offset
 PmScaled$log.effort	= log(PmScaled$EffArea)
+
 PmRaw$log.effort	= log(PmRaw$EffArea)
-PmRaw$d2smt = PmRaw$d2smt/1000
+PmRaw$d2smt = PmRaw$d2smt/1000 #for plotting purposes
 
-saveRDS(PmScaled, here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled2.rda') ))
+#save if file again if needed
+# saveRDS(PmScaled, here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled2.rda') ))  
 
-nrow(filter(PmScaled, pa > 0)) #how many presences? was 118, now should be 147
+nrow(dplyr::filter(PmScaled, pa > 0)) #how many presences? was 118, now should be 147
 
-# pairs(PmScaled[,15:26])
+#rename columns for better plots LATER
+# colnames(PmScaled)[c(18:29,44)] <- c('SST', 'Chla', 'Temp600m', 'Wave Power', 'Depth', 'Slope', 'Aspect', 'Dist to Land', 'SSH', 'SSHsd', 'EKE', 'Dist to Seamt', 'Log Effort')
+
 ```
 
 Check correlation of covariates
-```{r, echo=FALSE, eval=FALSE}
+```{r echo=FALSE, eval=FALSE}
 corrplot.mixed(cor(PmScaled[,18:29]), upper="number", lower="circle")
 
 ```
@@ -140,7 +152,7 @@ Cairo(here::here('figures', paste0('DataPlotsScaled_', gridsize, 'km_', loctype,
 
 ```
 More plots
-```{r}
+```{r eval=FALSE, echo=FALSE}
 
  histT600 <- ggplot(PmRaw, aes(temp600, fill=as.factor(pa))) +
      geom_histogram(colour='black', binwidth = 0.5) +
@@ -156,7 +168,7 @@ More plots
 
 
 #split the data into train and test sets
-```{r, eval=FALSE, echo=FALSE}
+```{r eval=FALSE, echo=FALSE}
 # split datasets into 70% train and 30% test (i.e., independent)
 splitdf <- function(dataframe, seed=NUL) {
     if (!is.null(seed)) set.seed(seed)
@@ -195,12 +207,6 @@ testAcOnly  = rbind( testAcOnly,  testAll)
 nrow(filter(trainAcOnly, pa >0))
 nrow(filter(testAcOnly, pa >0))
 
-
-surveyi <- c(1641, 1303, 1604, 1705, 1706)
-PmScaled1641 <- subset(PmScaled, survey == 1641)
-dat.splits <- splitdf(dat, seed=808) #setting seed allow reproducible result
-dat.train <- dat.splits$trainset
-dat.test <- dat.splits$testset
 ```
 
 #KS Test
@@ -212,7 +218,7 @@ Sent to Jeff P. to take a look.
 https://rpubs.com/mharris/KSplot  -  Used this site for plot code.
 
 The second part uses KS test to compare the distributions of the env vars between the cells using the localized whale positions and the cells of the same whales but using the cells associated with their position on the trackline. This will evaluate whether the env data are truly different for whales localized at greater distances from the ship. 
-```{r}
+```{r eval=FALSE, echo=FALSE}
 require(Cairo)
 #PART 1: Using the localized whale and sighting data, compare the distributions of env data between whale+ and whale- cells
 #Separate the whale+ and whale- cells
@@ -266,92 +272,15 @@ dev.off()
 
 
 #GAM
-Thin-plate regression splines are the default which give 10 raw parameters per 1D smoother.
+Thin-plate regression splines are the default basis for smoothers using 10 knots resulting in 10 raw parameters per 1D smoother. 
+Environmental data predictors were set as smoothers using 3 degrees of freedom (k=3) per recommendations from the literature to reduce overfitting in similar types of cetaceans distribution models.The log of effort was included as an offset to account for the variation in effort per cell.
+The data are treated as count data, number of sperm whale encounters per cell, and we used the Tweedie distribution since it has been shown to work well when fewer positive responses exist within the data.
 
-## Binomial for 10 km and 5 km
-```{r, eval=FALSE}
-# colnames(PmScaled)
-
-#No 2D smoother for longitude and latitude
-gamnb_full <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = binomial, link = 'logit')
-
-gamBINOM <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = binomial, link = 'logit')
-
-gamnb_full.sel <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = nb, select = TRUE)
-
-#Includes 2D smoother for longitude and latitude
-ptm=proc.time()
-gamnb_fullb <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude), data = PmScaled, family = nb)
-(min_wavepow=proc.time()-ptm) 
-min_wavepow[3]/60
-
-#Includes 2D smoother & year (survey)
-gamnb_fullc <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
-
-gamnb_fullc <- gam(pa ~ s(bath_m, bs='cr', k=3) + s(sst, bs='cr', k=3) + s(chla, bs='cr', k=3) + s(temp600, bs='cr', k=3) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
-
-```
-
-##10km - summary
-```{r}
-#No 2D smoother
-summary(gamnb_full)
-
-par(mfrow=c(2,2))
-plot(gamnb_full, pages=2)
-
-gam.check(gamnb_full)
-
-#Includes 2D smoother
-summary(gamnb_fullb)
-
-par(mfrow=c(2,2))
-plot(gamnb_fullb, pages=3)
-
-gam.check(gamnb_fullb)
-
-#Includes 2D smoother and year
-summary(gamnb_fullc)
-plot(gamnb_fullc, pages =3)
-par(mfrow=c(2,2))
-gam.check(gamnb_fullc)
-
-# plot(allEffects(model, partial.residuals = TRUE))
-```
-
-###Variogram 
-*How similar are the residuals relative to their distance from each other in space?
-  This tests for autocorrelation. If nearby residuals are similar due to unmeasured env effects, for example, the variogram will show a pattern where there are lower values at lower distances and then an increase at farther distances. 
-```{r}
-vnb_full <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_full, type = 'pearson'))
-plot(vnb_full)
-
-vnb_fullb <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullb, type = 'pearson'))
-plot(vnb_fullb)
-
-vnb_fullc <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullc, type = 'pearson'))
-plot(vnb_fullc)
-
-```
-
-###Examine Spatial Autocorrelation
-```{r}
-
-#let's try looking at the spatial auto in model residuals
-
-
-
-
-
-
-
-
-```
 
 ##25km - Tweedie
 
 No knot contrain
-```{r, eval=FALSE}
+```{r, eval=FALSE, echo=FALSE}
 # colnames(PmScaled)
 
 #No 2D smoother for longitude and latitude
@@ -375,10 +304,21 @@ Knots contrained to k=3
 Automatic term selection is uses an additional penalty term when determining the smoothness of the function.
   We excluded all non-significant variables (alpha=0.05) and refit the models until all variables were significant.
 REML is restricted maximum likelihood used to optimize the parameter estimates.
-```{r}
-#Report
-tw25k3sel <- gam(pa ~ s(bath_m, k=3) + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) +s(dist, k=3) + offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
+```{r,eval=FALSE, echo=FALSE}}
 
+tw25k3sel <- gam(pa ~ s(bath_m, k=3)+s(dist, k=3) + s(slope, k=3) + offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw25k3sel)
+
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw25k3selBraw, pages = 1, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'darkseagreen2', all.terms = TRUE)
+
+
+# + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) + s(dist, k=3) + 
+```
+
+
+```{r, eval=FALSE, echo=FALSE}
 #testing without log.effort offset
 tw25k3sel2 <- gam(pa ~ s(bath_m, k=3) + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) +s(dist, k=3), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
 
@@ -395,7 +335,7 @@ scheme = 1, shade = T, shade.col = 'deepskyblue', ylim = c(-20, 10))
 ```
 
 Taking previous model with k=3, auto term selection and changing some variables from smoothers to linear parameters
-```{r}
+```{r, eval=FALSE, echo=FALSE}
 
 tw25k3selB <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
 tw25k3selBraw <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort), data = PmRaw, family = tw, link = 'log', select = TRUE, method = "REML")
@@ -445,7 +385,7 @@ par(mar=c(4,4,3,3), mfrow=c(1,1))
 ```
 
 What happens when a 2D lat/lon smoother is fit only?
-```{r}
+```{r, eval=FALSE, echo=FALSE}
 # require(SDraw) #doesn't work
 tw25kLL <- gam(pa ~ s(Longitude, Latitude), data = PmScaled, family = tw, link='log', select = TRUE, method = "REML")
 summary(tw25kLL)
@@ -468,7 +408,7 @@ hawaiiMap<-fortify(hawaii)
 ```
 
 
-```{r}
+```{r, eval=FALSE, echo=FALSE}
 
 #Includes 2D smoother for longitude and latitude
 tw25b <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude), data = PmScaled, family = tw)
@@ -479,25 +419,86 @@ tw25c <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspec
 ```
 
 
-```{r}
-#No 2D smoother
-summary(tw25)
-par(mfrow=c(2,2))
-plot(tw25, pages=4)
 
-gam.check(tw25)
+
+
+
+## Binomial for 10 km and 5 km
+```{r, eval=FALSE}
+# colnames(PmScaled)
+
+#No 2D smoother for longitude and latitude
+gamnb_full <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = binomial, link = 'logit')
+
+gamBINOM <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = binomial, link = 'logit')
+
+gamnb_full.sel <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = nb, select = TRUE)
+
+#Includes 2D smoother for longitude and latitude
+ptm=proc.time()
+gamnb_fullb <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude), data = PmScaled, family = nb)
+(min_wavepow=proc.time()-ptm) 
+min_wavepow[3]/60
+
+#Includes 2D smoother & year (survey)
+gamnb_fullc <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
+
+gamnb_fullc <- gam(pa ~ s(bath_m, bs='cr', k=3) + s(sst, bs='cr', k=3) + s(chla, bs='cr', k=3) + s(temp600, bs='cr', k=3) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort) + s(Longitude, Latitude) + survey, data = PmScaled, family = nb)
+
+```
+
+##10km - summary
+```{r, eval=FALSE, echo=FALSE}
+#No 2D smoother
+summary(gamnb_full)
+
+par(mfrow=c(2,2))
+plot(gamnb_full, pages=2)
+
+gam.check(gamnb_full)
 
 #Includes 2D smoother
-# summary(tw25b)
-# plot(tw25b, pages=3)
-# par(mfrow=c(2,2))
-# gam.check(tw25b)
-# 
-# #Includes 2D smoother and year
-# summary(tw25c)
-# plot(tw25c, pages =3)
-# par(mfrow=c(2,2))
-# gam.check(tw25c)
+summary(gamnb_fullb)
+
+par(mfrow=c(2,2))
+plot(gamnb_fullb, pages=3)
+
+gam.check(gamnb_fullb)
+
+#Includes 2D smoother and year
+summary(gamnb_fullc)
+plot(gamnb_fullc, pages =3)
+par(mfrow=c(2,2))
+gam.check(gamnb_fullc)
+
+# plot(allEffects(model, partial.residuals = TRUE))
+```
+
+###Variogram 
+*How similar are the residuals relative to their distance from each other in space?
+  This tests for autocorrelation. If nearby residuals are similar due to unmeasured env effects, for example, the variogram will show a pattern where there are lower values at lower distances and then an increase at farther distances. 
+```{r, eval=FALSE, echo=FALSE}
+vnb_full <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_full, type = 'pearson'))
+plot(vnb_full)
+
+vnb_fullb <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullb, type = 'pearson'))
+plot(vnb_fullb)
+
+vnb_fullc <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(gamnb_fullc, type = 'pearson'))
+plot(vnb_fullc)
+
+```
+
+###Examine Spatial Autocorrelation
+```{r}
+
+#let's try looking at the spatial auto in model residuals
+
+
+
+
+
+
 
 
 ```

@@ -96,7 +96,10 @@ diffbath <- filter(lrbestyay, abs(lrbestyay$diffbath) > 1000 & diffbath !='NA') 
 #make vector of IDs for bath outliers
 bathID <-diffbath$ID
 diffbathdf <- LRbest[LRbest$ID %in% bathID,] #pull out the rows in LRbest that match (are in) the IDs in bathID
+```
 
+Old code that I'm not using
+```{r}
 #to look at the depth distribution, need to randomly select A or B values from encs that are not outliers
 #remove outliers in bath, so remove the encounters from LRbest that appear in bathID
 # bathdf <- LRbest[!(LRbest$ID %in% bathID)]
@@ -175,12 +178,12 @@ diffbathdf <- LRbest[LRbest$ID %in% bathID,] #pull out the rows in LRbest that m
 # bathyxyzsub <- read.bathy( "bathy_totsub.csv")
 # summary(bathyxyzsub)
 # plot(bathyxyzsub, land = TRUE)
+```
 
 
 
 
-
-
+```{r}
 ##### Slope #####
 plot(lrbestyay$m, abs(lrbestyay$diffslp), main = 'slope')
 
@@ -543,6 +546,92 @@ hist(SwEnvData_pred$eke, xlab = expression(paste("EKE (m"^"2", "/s"^"2",")")), m
 
 
 ```
+
+#Plot the data, see what's happening
+```{r,eval=FALSE}
+# par(mfrow = c(1,1))
+# with(CompleteTotal, plot(pa~bath_m))
+require(Cairo)
+require(ggplot2)
+source('./code/multiplot.r') 
+
+ 
+loopVec <- 18:29  #columns from PmScaled to plot
+ 
+# par(mfrow = c(1, 3), mar=c(3,3,1,1), oma=c(0,0,3,1))
+ 
+for (j in loopVec){
+   #use original values for plots with PmRaw
+   datPlot <- PmScaled[,c(1,j)]  #get dataframe of pa and variable j
+   datPlot$bin <- 0
+   datPlot$bin <- ifelse(datPlot$pa >0 , 1, 0) #put 1s in color col for plotting later
+   datPlot <- select(datPlot, bin, 2, pa)
+    #normal plot
+   # plot(datPlot[,2], datPlot[,1], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'whales per cell')
+   
+
+   ptplt <-  ggplot(datPlot, aes(datPlot[,2],datPlot[,1], colour=as.factor(datPlot[,1]))) +
+       geom_point() +   
+     theme(legend.position ="none") +
+       xlab(paste(colnames(datPlot)[2], 'scaled' )) +
+       ylab('whales per cell')+
+       # scale_colour_discrete(name='',labels = c('Whales Absent', 'Whales Present'))+
+theme_bw() +
+  guides(colour=FALSE)
+   
+   #histogram
+   # hist(datPlot[,2], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'frequency', main='' )
+   
+   histplt <- ggplot(datPlot, aes(datPlot[,2], fill=as.factor(datPlot[,1]))) +
+     geom_histogram(colour='black', binwidth = 0.5) +
+    xlab(paste(colnames(datPlot)[2],'scaled' )) +
+    ylab('Frequency') +
+     scale_fill_discrete(name = '', labels = c('Whales Absent', 'Whales Present'))+
+     theme_bw() +
+     theme(legend.position ="top",
+           legend.text=element_text(size=16)) 
+
+   
+   #do KS test and plot
+   datPlot1 <- filter(datPlot, pa >0)
+   datPlot0 <- filter(datPlot, pa ==0)
+
+   datKS <- ks.test(datPlot1[,2], datPlot0[, 2])
+     cdf0 <- ecdf(datPlot0[,2]); cdf1 <- ecdf(datPlot1[,2]) #make cdfs for the absences and whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(datPlot0[,2], datPlot1[,2]), max(datPlot0[,2], datPlot1[,2]), length.out=length(datPlot0[,2])) 
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0)
+   
+  ksplt <- ggplot(datPlot, aes(x = datPlot[,2], group = datPlot[,1], color = as.factor(datPlot[,1]))) + #
+  stat_ecdf(size=1) +
+    theme_bw() +
+    theme(legend.position ="none", plot.title = element_text(hjust= 0.5)) +
+    xlab(paste(colnames(datPlot)[2],'scaled') ) +
+    ylab("ECDF") +
+    #geom_line(size=1) +
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+        linetype = "dashed", color = "red") +
+    geom_point(aes(x = x0[1] , y= y0[1]), color="red", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="red", size=2) +
+    ggtitle("K-S Test") +
+    # theme(legend.title=element_blank()) +
+     scale_colour_discrete(name = 'Distribution Type', labels = c('Whales Absent', 'Whales Present'))+
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.1, hjust=.2,label=paste('D=',round(datKS[1]$statistic,2))) +
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.05, hjust=.2,label=paste('p=',round(datKS$p.value,3)))
+
+Cairo(here::here('figures', paste0('DataPlotsScaled_', gridsize, 'km_', loctype,'_', colnames(datPlot)[2], '.png')), width=14,height=6,
+    units='in', dpi=300, bg='white')
+  multiplot(ptplt, histplt, ksplt, cols=3)
+ dev.off()
+  
+   # ggsave(paste('DataPlots_',colnames(datPlot)[2],'.png'))
+  
+  }
+
+```
+
 
 
 
