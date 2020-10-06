@@ -1,0 +1,232 @@
+---
+title: "Wilcoxon Signed Rank Test Comparing Env Data Btwn Trackline and Localized Whales"
+author: "Yvonne Barkley"
+date: "5/31/2020"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r message=F}
+library(lubridate)
+library(tidyverse)
+library(reshape2)
+library(dplyr)
+library(ggplot2)
+library(here) #helps with stupid root dir and accessing subfolders, it's awesome.
+library(rstatix)
+library(broom)
+
+```
+
+```{r}
+gridsize = 10
+loctype = 'allsw'
+loctype2 = 'all'
+```
+
+## Wilcoxon SIGNED RANK Test for PAIRED DATA with non-normal distributions
+#### May 2020 / Sept 2020
+Env data from the estimated location of the whales was compared to the trackline locations of the same whales to determine whether they were different. This was to help decide if it was reasonable to include unlocalized whales in the overall analysis.
+
+The env data from the true estimated locations is found in output/SpermiesFinalLR_20200919.csv - AFTER selecting the left OR right side.
+The env data from the trackline locations for the same whales is found in output/SpermiesWithEnvDataLocTrk_20200531.csv
+
+Both data sets were computed in the 2_PmEnvData-clean code
+
+Ran tests for prelim look at env data between localized whale locations and their trackline locations.
+Didn't find much difference according to WILCOXON SIGNED RANK TESTS.
+```{r}
+wxDatTrk <- read.csv(here::here('/output/SpermiesWithEnvDataLocTrk_20200531.csv'))
+wxDatLoc <- read.csv(here::here('/output/SpermiesFinalLR_20200919.csv'))
+
+#select one of the rows for each encounter in the trackline data set bc there are multiple lines for each encounter, but all have the same env data. Choosing 'best' type and peak 'A' to subset means nothing.
+wxTrk <- subset(wxDatTrk, type == 'best' & peak == 'A' & itrk ==1)
+wxTrk$group <- 0
+#subset all of the localized encounters by loc==1
+wxLoc <- subset(wxDatLoc, loc == 1)
+wxLoc$group <- 1
+
+#create one data set with all env data for both groups
+wxDat <- rbind(wxLoc, wxTrk)
+wxDat <- select(wxDat, !(c('temp100C', 'temp500C', 'par_m', 'wind_ms')))
+# swtestagain <- rbind(swpeakmean2, swtest_sub)  #don't know where this came from in the May analysis
+
+wilcoxn <- lapply(wxDat[,c("sstAQ_m", "temp600C","chla_m","bath","slp_deg","asp_deg", "d2land_km", "d2smt_km","wavepow","ssh","sshsd","eke")], function(x) wilcox.test(x ~ wxDat$group, paired=TRUE))
+```
+
+Extract pvalues from wilcoxn list results
+```{r}
+wxNames <- c("sstAQ_m", "temp600C","chla_m","bath","slp_deg","asp_deg", "d2land_km", "d2smt_km","wavepow","ssh","sshsd","eke")
+
+wxPvals = NULL 
+# wxPvalsDF = NULL
+for (wx in 1:length(wilcoxn)){
+    
+        wxtmp  <- wilcoxn[wx]  # get the list element
+        
+        wxP <- wxtmp[[1]]$p.value # extract the pvalue
+  
+        wxInfo <- cbind(  wxNames[wx]  , wxP)  # combine the name of the variable and pvalue
+  
+        wxPvals = rbind.data.frame(wxPvals, wxInfo)  #combine each result
+
+  }
+
+colnames(wxPvals) <- c("Env Variable", "p-value")
+
+write.csv(wxPvals, here::here(  paste0( '/output/WilcoxonPvals.csv')))
+
+
+```
+
+Run summary stats on variables to justify they follow the assumptions of the wilcoxon signed 
+```{r}
+#UNHELPFUL site for code, but helpful for different test types
+#https://www.datanovia.com/en/lessons/wilcoxon-test-in-r/#signed-rank-test-on-paired-samples
+wxTrk$group2 = 'trackline'
+wxLoc$group2 = 'localized'
+
+wxDat2 = rbind(wxLoc, wxTrk)
+wxDat2 <- select(wxDat2, !(c('temp100C', 'temp500C', 'par_m', 'wind_ms')))
+wxDat2$group2 <- as.factor(wxDat2$group2)
+
+#select pa, group2, and variables
+wxDat2sub <- select(wxDat2, ID, sstAQ_m:eke, group2)
+
+```
+#From Zack 9/29/20
+```{r}
+library(tidyr)
+data = wxDat2sub[, c(2:14,1)]
+colnames(data)[13] <- 'group'
+# data <- data.frame(V1 = rnorm(n = 100),
+#                    V2 = rnorm(n = 100),
+#                    V3 = rnorm(n = 100),
+#                    V4 = rnorm(n = 100),
+#                    V5 = rnorm(n = 100),
+#                    V6 = rnorm(n = 100),
+#                    V7 = rnorm(n = 100),
+#                    V8 = rnorm(n = 100),
+#                    V9 = rnorm(n = 100),
+#                    group = rep(c("Group 1", "Group 2"), times = 50),
+#                    ID = rep(1:50, each = 2))
+
+par(mfrow = c(3, 3) )
+for (ivar in names(data[1:12])) {  #paste0("V", 1:9)
+ 
+ temp_df <- tidyr::spread(data = subset(data, select = c("group", ivar, 'ID')),
+                          key = group,
+                          value = ivar)
+ 
+ boxplot(temp_df[, -1],
+         las = 1,
+         main = ivar)
+ 
+ segments(x0 = 1,
+          x1 = 2,
+          y0 = temp_df[, "localized"],
+          y1 = temp_df[, "trackline"])
+ points(x = rep(1, nrow(temp_df) ),
+        y = temp_df[, "localized"],
+        pch = 16)
+ points(x = rep(2, nrow(temp_df) ),
+        y = temp_df[, "trackline"],
+        pch = 16)
+}
+
+par(mfrow = c(3, 3) )
+for (ivar in names(data[1:12])) {
+ 
+ temp_df <- tidyr::spread(data = subset(data, select = c("group", ivar, 'ID')),
+                          key = group,
+                          value = ivar)
+ 
+ differences <- apply(X = temp_df[,-1],
+                      MARGIN = 1,
+                      FUN = diff)
+ 
+ hist(differences,
+      freq = F,
+      xlab = 'Difference',
+      las = 1,
+      main = ivar,
+      nclass = 10)
+ lines(density(differences))
+
+}
+```
+
+
+
+#Q2: Do demographic groups differ in any env data?
+Use BROOM package to look at multiple env covariates in non-parametric tests between different groups defined as:
+* foraging (r, ck) vs not foraging
+* social groups (cd)
+
+NOT CONSIDERING THE FOLLOWING DUE TO LIMITATIONS IN THE DATA:
+males (s) vs social groups (cd)
+single animal vs multiple animals
+
+```{r}
+
+PmScaled <- readRDS(here::here( paste0('output/models/Combined/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))  #same as PmScaled
+#Demographic Division of Data
+
+##For singles vs groups, only use confirmed data from localized and sighted encounters, not unlocalized, bc not enough clicks or info from encounter other than a whale was present but couldn't be localized. The 'confirmed' data are either localized so we can see the TDOA tracks, or they are sighted and were counted by observers.
+#####################################
+### Sept 30, 2020: Decided not enough data for singles model using only sighted ac encs (11)
+
+##For foraging groups or other (slow, no foraging clicks at all), Use all whales.
+#Also added in a column for the presence of a male
+
+PmConfrmd <- filter(PmScaled, survey != 1642)  #remove survey 1642
+PmConfrmd <- filter (PmConfrmd, acid < 999) #now all acoustic encounters , no A999
+
+#1. Denote forage or not. 
+PmFor1 <- filter(PmConfrmd, grepl('r|k', click_code))   # the 'k' implies ck for creaks, c also for codas
+PmFor0 <- filter(PmConfrmd, !grepl('r|k', click_code))
+PmFor1$forage <- 1  #forage
+PmFor0$forage <- 0  #non-forage
+PmForage <- bind_rows(PmFor1, PmFor0)
+
+nrow(PmFor0)
+nrow(PmFor1)
+
+
+############# YES DOING THIS ####################
+#2. Denote social group or not
+
+PmGroup1 <- filter(PmConfrmd, grepl('cd', click_code))
+PmGroup0 <- filter(PmConfrmd, !grepl('cd', click_code))
+
+#designate whether the encounters included codas (1) or not (0)
+PmGroup1$group <- 1
+PmGroup0$group <- 0
+PmGroup <- rbind(PmGroup1, PmGroup0)
+
+
+########### NOT DOING THIS ################
+
+PmConfrmd <- filter(PmScaled, survey != 1642)
+PmConfrmd <- filter (PmConfrmd, acid < 999)  # now all acoustics encounters
+
+PmConfrmd <- PmConfrmd %>% replace_na(list(grpsize=0, nmin = 0)) #fill nas with 0 in these columns
+
+#designate whether the encounters were a group (1) or single animal (0)
+PmConfrmd$group <- 1
+PmConfrmd$group[PmConfrmd$grpsize == 1 | PmConfrmd$nmin == 1] <- 0
+
+#2. Denote single male or social group. Single male is defined as having one track of TDOAs and slow clicks, or a visual count of 1 animal
+PmMale <- filter(PmForage, grepl('s', click_code) & nmin == 1 | grpsize == 1)
+PmMale <- filter(PmMale, !grepl('cd|k|r', click_code))
+PmMale0 <- filter(PmForage, !grepl('s', click_code))
+PmMale$male <- 1
+PmMale0$male <- 0
+PmMale <- bind_rows(PmMale, PmMale0)
+```
+
+
+
+
+

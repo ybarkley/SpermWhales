@@ -89,8 +89,8 @@ temp <-meandist$ID[!(meandist$ID %in% lrbest$ID)]
 lrbest2 <- meandist[!meandist$ID %in% temp, ]  #remove these encounters from meandist to add in as col of lrbest 
 
 lrbestyay <-cbind(lrbest2[2], lrbest) # Using this df to evaluate differences between env data
-
-
+```
+```{r}
 ##### Bathymetry #### 
 # plot each variable against the mean distance (of peaks A and B) for each encounter
 # might expect to have a greater difference the farther you go from the trackline
@@ -297,8 +297,12 @@ r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(max(lrbestyay$m)*0.95, min(abs(lrbestyay$diffbath))*20, paste0( 'R2 = ',round(r2,2)))
 abline(coefficients(lmbest))
-
-
+summary(lmbest)
+plot(fitted(lmbest), resid(lmbest))
+abline(0,0)
+qqnorm(resid(lmbest))
+qqline(resid(lmbest))
+plot(density(resid(lmbest)))
 
 plot(lrbestyay$m, abs(lrbestyay$diffdland),  xlab = 'Mean Distance (km)', ylab = 'Diff in Dist2Land (km)')
 lmbest <- lm(abs(lrbestyay$diffdland) ~ lrbestyay$m)
@@ -307,6 +311,7 @@ r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(max(lrbestyay$m)*0.95, min(abs(lrbestyay$diffdland))*20, paste0( 'R2 = ',round(r2,2)))
 abline(coefficients(lmbest))
+summary(lmbest)
 
 plot(lrbestyay$m, abs(lrbestyay$diffslp),   xlab = 'Mean Distance (km)', ylab = 'Diff in Slope (deg)')
 plot(lrbestyay$m, abs(lrbestyay$diffasp),   xlab = 'Mean Distance (km)', ylab = 'Diff in Aspect (deg)')
@@ -691,7 +696,7 @@ hist(SwEnvData_pred$eke, xlab = expression(paste("EKE (m"^"2", "/s"^"2",")")), m
 
 ```
 
-#From data exploration in GAMS
+#From data exploration in GAMS code
 Plot the data, see what's happening
 ```{r,eval=FALSE}
 # par(mfrow = c(1,1))

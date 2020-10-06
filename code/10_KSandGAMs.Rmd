@@ -1,5 +1,5 @@
 ---
-title: "GAMs for Sperm Whales"
+title: "Prliminary GAMs for Sperm Whales"
 author: "Yvonne Barkley"
 date: "7/6/2020"
 output:
@@ -17,7 +17,9 @@ library(geoR)
 library(tidymv)
 ```
 
+## Include all sperm whales with all data, no training data split
 ```{r}
+
 gridsize = 25
 loctype = 'allsw'
 loctype2 = 'all'
@@ -320,6 +322,7 @@ plot(tw25k3selEraw, residuals = F, pch = 20, cex = 0.25,
 
 # hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 saveRDS(hawaiiMap, here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- filter(PmScaled, pa >0) #get points for whales to plot
 

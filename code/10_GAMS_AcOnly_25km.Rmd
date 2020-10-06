@@ -1,13 +1,19 @@
 ---
-title: "GAMs - Acoustics Only - 25 km "
+title: 'GAMs - Acoustics Only - 25 km '
 author: "Yvonne Barkley"
 date: "9/26/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE)
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60),tidy=TRUE)
 ```
+
+## Technical coding questions:
+* what's the easiest way to make the partial residual plots using the raw data when I'm running the models with scaled data?
+* I need help with the predict() function for predicting the test data. I thought it was straight-forward but I'm misunderstanding how it works.
 
 
 Load libraries
@@ -25,6 +31,11 @@ library(here)
 ## What environmental variables characterize sperm whale habitat? 
 ## Hypothesis: Sperm whales are found in deep, productive offshore waters. 
 
+
+Include more details about what to expect in this document
+
+
+
 Load universal variables
 ```{r}
 #Values used for file and directory names
@@ -35,8 +46,7 @@ loctype2 = 'Ac'
 
 ```
 
-
-###Load data
+Load data
 ```{r}
 PmScaled <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
 # add column for log effort as offset #
@@ -44,17 +54,18 @@ PmScaled$log.effort	= log(PmScaled$EffArea)
 
 ```
 ```{r echo=FALSE}
-PmScaled <- subset(PmScaled, chla <= 10)
+
 
 PmRaw <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_raw.rda') ))
 PmRaw$log.effort	= log(PmRaw$EffArea)
 PmRaw$d2smt = PmRaw$d2smt/1000 #for plotting purposes
 
-colnames(PmRaw)[c(18:29,44)] <- c('SST', 'chla', 'temp600m', 'wavepower', 'depth', 'slope', 'aspect', 'distland', 'SSH', 'SSHsd', 'EKE', 'distseamt', 'logeffort')
+colnames(PmRaw)[c(18:29,44)] <- c('SST.r', 'chla.r', 'temp600m.r', 'wavepower.r', 'depth.r', 'slope.r', 'aspect.r', 'distland.r', 'SSH.r', 'SSHsd.r', 'EKE.r', 'distseamt.r', 'logeffort.r')
 
+PmScaled <- data.frame(PmScaled, PmRaw[, c(18:29,44)])
 # head(dplyr::arrange(PmScaled, desc(chla)))
 # PmScaled <- subset(PmScaled, chla <= 10)
-
+PmScaled <- subset(PmScaled, chla <= 10)
 ```
 
 ```{r, echo=FALSE, eval=FALSE}
@@ -186,19 +197,22 @@ splitdf <- function(dataframe, seed=NULL) {
     testset <- dataframe[-trainindex, ]
     list(trainset=trainset,testset=testset)
 }
+
 trainAcOnly = NULL
 testAcOnly = NULL
+seed = 678
+seed = 555
 for (s in c(1641, 1303, 1604, 1705, 1706)){
    
  trSub <- filter(PmScaled, survey == s)
 
  #subset for presences and split 70/30
- pres1 <- filter(trSub, pa > 0 & sid == 999 & loc == 1)
- listPres  <- splitdf(pres1, 777) #output is list for train and test
+ pres1 <- filter(trSub, pa > 0 & sid == 999)# & loc == 1) #for S999 versions
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
 
  #subset for absences and split 70/30
  abs0  <- filter(trSub, pa == 0 )
- listAbs <- splitdf(abs0, 777)  #output is list for train and test
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
 
  #combine train data for presence and absence
  trainAll <- rbind( listPres$trainset, listAbs$trainset )
@@ -212,8 +226,8 @@ testAcOnly  = rbind( testAcOnly,  testAll)
 # trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
 # testAcOnly$log.effort <- log(testAcOnly$EffArea)
 }
-saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Loc.rda')  ))
-saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Loc.rda')  ))
+saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_S999b.rda')  ))
+saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_S999b.rda')  ))
 
 # nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
 # nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
@@ -262,6 +276,9 @@ Load training and test data
 trainS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_S999.rda')  ))
 testS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_S999.rda')  ))
 
+# trainS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_S999b.rda')  ))
+# testS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_S999b.rda')  ))
+
 ```
 
 ## __Model Selection__
@@ -277,25 +294,24 @@ summary(twS999)
 # + s(slope, k=3) + s(aspect, k=3)       # removed 9/27 
 ```
 
- $~$
- 
+
 ```{r echo=FALSE}
 par(mar=c(4,4,3,3),mfrow = c(2,2))
 plot(twS999, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
 scheme = 1, shade = T, shade.col = 'aquamarine', all.terms = TRUE, main='Full Ac Only-25km')
 ```
-$~$
 
 
 #### MODEL DIAGNOSTICS  
-The stripe at the bottom left of the residuals vs. fitted values (linear predictor) corresponds to the zeros.  
+The stripe at the bottom left of the residuals vs. fitted values (linear predictor) corresponds to the zeros.
+
 
 ```{r echo=FALSE}
 # model diagnostics
 gam.check(twS999)
 ```
 
-$~$
+
 
 ### REDUCE MODEL PARAMETERS
    * Removed non-significant variables:   
@@ -311,8 +327,6 @@ summary(twS999b)
 
 ```
 
-$~$
-
 ```{r echo=FALSE}
 par(mar=c(4,4,3,3),mfrow = c(2,2))
 plot(twS999b, residuals = FALSE, pch = 20, cex = 0.25,
@@ -321,32 +335,30 @@ scheme = 1, shade = T, shade.col = 'aquamarine', all.terms = TRUE, main='Reduced
 
 ```
 
-$~$
 
 #### MODEL DIAGNOSTICS  
+
 ```{r echo=FALSE}
 # model diagnostics
 gam.check(twS999b)
 ```
 
-$~$
 
 ### Include 2D Lat-Lon  
-Includes 2D Lat-Lon smoother to account for spatial structure in the data  
-* Notice that the temperature at 600m is no longer significant compared to the previous data  
-* Chlorophyll and SSHsd remain significant  
-+ Does this indicate that they aren't spatially structured and are independent of location?  
-* The 2D smoother is fitting the spatial variation not explained by the other predictors  
-```{r}
+Includes 2D Lat-Lon smoother to account for spatial structure in the data and fit the spatial variation not explained by the other predictors  
+  * Notice that the temperature at 600m is no longer significant compared to the previous models  
+  * Chlorophyll and SSHsd remain significant  
+    + Does this indicate that they aren't spatially structured and are independent of location? 
 
-twS999LL <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+```{r}
+twS999LL <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
 summary(twS999LL)
 ```
 
 
 ```{r echo=FALSE}
 par(mar=c(4,4,3,3),mfrow = c(2,2))
-plot(twS999LL, pages = 4, residuals = FALSE, pch = 20, cex = 0.25,
+plot(twS999LL, residuals = FALSE, pch = 20, cex = 0.25,
 shade = T, scheme = 1, theta= 45, phi=40, shade.col = 'aquamarine', all.terms = TRUE, main='Full Ac Only w/ 2D smoother-25km')
 ```
 
@@ -361,7 +373,7 @@ whales <- subset(trainS999, pa >0) #get points for whales to plot
 points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
 points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
 ```
-$~$
+
 
 
 #### MODEL DIAGNOSTICS  
@@ -370,7 +382,6 @@ $~$
 par(mar=c(4,4,3,3),mfrow = c(2,2))
 gam.check(twS999LL)
 ```
-$~$
 
 ### REDUCE MODEL PARAMETERS  
    * Removed non-significant variables:   
@@ -387,6 +398,10 @@ $~$
 ```{r}
 twS999LLb <- gam(pa ~ s(Longitude, Latitude) + s(chla, k=3) + s(sshsd, k=3)  +  offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
 summary(twS999LLb)
+
+# twS999LLfull <- gam(pa ~ s(Longitude, Latitude) + s(chla, k=3) + s(sshsd, k=3)  +  offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
+# summary(twS999LLfull)
+
 ```
 
 ```{r echo=FALSE}
@@ -395,7 +410,7 @@ plot(twS999LLb, pages = , residuals = FALSE, pch = 20, cex = 0.25,
 shade = T, scheme = 1, theta= 30, phi=20, shade.col = 'aquamarine', all.terms = TRUE, main='Reduced Ac Only w/ 2D smoother-25km')
 ```
 
-```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters. Black dots are all data points"}  
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters. Black dots are all data points." }  
 par(mfrow = c(1,1))
 plot(twS999LLb, select = 1, scheme = 2, lwd = 2, main='2D Spatial Smoother') #select the first smoother, select = 1
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
@@ -408,17 +423,54 @@ points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
 ```
 $~$
 
+
+
 ### Conclusions
-##### The first reduced Acoustics Only model included more dynamic variables for the significant smooth terms compared to both models that included a 2D spatial smoother. The former addressed my hypothesis more clearly given that depth, chl a, and SSH/SSHsd were included as important variables. The introduction of the 2D smoother reduces all dynamic variables except for chla and SSHs. Acoustic encounters of sperm whales indicate sperm whale occurrence is related to productivity in some way whether or not a 2D smoother is included. If left out of the model, we should acknowledge how certain important variables may also be 
+##### The first reduced Acoustics Only model included more dynamic variables for the significant smooth terms compared to both models that included a 2D spatial smoother. The former addressed my hypothesis more clearly given that depth, chl a, and SSH/SSHsd were included as important variables. The introduction of the 2D smoother reduces all dynamic variables except for chla and SSHsd. Acoustic encounters of sperm whales indicate sperm whale occurrence is related to productivity in some way whether or not a 2D smoother is included. If the 2D smoother is left out of the model, I should acknowledge how certain important variables may also be spatially autocorrelated. Some papers state that spatial autocorrelation exists, calculate Moran's I to determine the magnitude, and don't do anything more about it, such as Forney et al. 2015. 
 
 $~$
 
-#### NEED HELP HERE:
-Predict Test Data
-```{r eval=FALSE}
+#### NEED HELP HERE: Trying to sort out how to use the test data set for prediction purposes and how to use those results to evaluate model performance.
 
-trainS999$predicted <- predict(twS999LLb, data = testS999)
+
+## Predict Test Data
+```{r eval=FALSE}
+#https://gist.github.com/aperium/9fc737ea311a758328eadf27c2426e47
+
+require(magrittr)
+require(dplyr)
+
+#pulling the prediction and residual data from the model
+trainS999 %<>% mutate(resid = resid(twS999LLb), predict = predict(twS999LLb))
+
+predTrain <- predict.gam(twS999LLb, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+trainS999$fit <- predTrain
+
+#using scale of 0,1,2 makes this hard to interpret
+mean((trainS999$pa - trainS999$fit)^2)  #MSE
+mean(abs((trainS999$pa - trainS999$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+ 
+# plot %<>% + geom_smooth(aes(y = predict),  method = gam, formula = y ~ s(x, bs = "ps"), data = filter(sa_factor, climate_scenario == unique(sa_factor$climate_scenario)[1]), size = 1, se = FALSE)
+
+
+predSW <- predict.gam(twS999LLb, newdata = testS999, type = 'response', se.fit = TRUE)
+testFinal <- data.frame(testS999, fit = predSW$fit, se.fit=predSW$se.fit)
+mean((testFinal$pa - testFinal$fit)^2) #MSE
+
+mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+
+plot(testS999$chla, testFinal$predSW)
+
+
+predSWtidy <- predict_gam(twS999LLb) #, newdata = testS999)#, type = 'response', se.fit = TRUE)
+
+ggplot(testFinal, aes(chla, fit)) +
+  geom_smooth_ci()
 ```
+
 ```{r eval=FALSE}
 lons <- seq(180, 210, 1/4)
 lats <- seq(15, 33, 1/4)
