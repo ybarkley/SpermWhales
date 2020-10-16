@@ -34,6 +34,9 @@ dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures/'
 SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200531.csv'))
 SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200527-scaled.csv'))
 
+#load data from Combined 'loctype' at 25km grid
+SwEnvData_mapb <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
 #The simple maps hate when data crosses the dateline, so for now, I'm adjusting everything back to the eastern side of the dateline for visual purposes
 SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvData_map$lon)
 
@@ -64,22 +67,41 @@ SwEnvData_mapb = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2,SwEnvData_
 ```
 
 
-#Get Hawaii map data
+#Get Hawaii map data and whale data
 ```{r}
+#OLD
 #Get shape files for Hawaii
-us<-readOGR("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
-hawaii<-subset(us,NAME=="Hawaii")
-hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+# us<-readOGR("C:\\Users\\yvers\\OneDrive\\PHD\\CHP2&3-Sperm\\code\\yb_maps\\shp\\tl_2016_us_state.shp")
+# hawaii<-subset(us,NAME=="Hawaii")
+# hawaiiMap<-fortify(hawaii) #converts shape file in a readable format for ggplot
+```
+```{r}
+ggplot(SwEnvData_mapb, aes(lon, lat)) +
+  geom_point(aes(color=as.factor(year), shape=enctype), size=3) +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
+  scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(8, 17, 15),name='Enc Type', labels=c("Ac_Localized", "Ac_Unlocalized","Sighting")) +
+ scale_color_manual(values = c("#d64161", "#ff7b25",  "#86af49", "#6b5b95"), name='Year') + #feb236", "#92a8d1",
+  geom_polygon(data = hawaiiMap, aes(x = long, y = lat, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("All Sperm Whale Encounters") +
+  theme(legend.position="bottom", legend.box='horizontal',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+
+ggsave(paste0(dir, 'SW_AllEncMap.png'), width=8, height = 6, units='in', dpi=300)
+
 ```
 
-
-
-#Plot all encounters
+## October 2020
+### Plot all encounters
 Shape by enc type (loc, unloc, vis), color by year
 ```{r}
+#Add on a 'year' column
 SwEnvData_mapbYr1 <- filter(SwEnvData_mapb, survey == '1303')
 SwEnvData_mapbYr2 <- filter(SwEnvData_mapb, survey == '1604')
-SwEnvData_mapbYr3 <- filter(SwEnvData_mapb, survey == '1641' | survey == '1642')
+SwEnvData_mapbYr3 <- filter(SwEnvData_mapb, survey == '1641')
 SwEnvData_mapbYr4 <- filter(SwEnvData_mapb, survey == '1705' | survey == '1706')
 
 SwEnvData_mapbYr1$year <- '2013'
@@ -89,6 +111,259 @@ SwEnvData_mapbYr4$year <- '2017'
 
 SwEnvData_mapb <- rbind.data.frame(SwEnvData_mapbYr1,SwEnvData_mapbYr2,SwEnvData_mapbYr3,SwEnvData_mapbYr4)
 
+SwEnvData_p <- filter(SwEnvData_mapb, pa > 0)
+SwEnvData_a <- filter(SwEnvData_mapb, pa == 0)
+SwEnvData_a$enctype = 'NA'
+SwEnvData_mapb1 <- filter(SwEnvData_p, loc == 1)
+SwEnvData_mapb2 <- filter(SwEnvData_p, loc == 0, sid == 999)
+SwEnvData_mapb3 <- filter(SwEnvData_p, loc == 0, sid < 999)
+SwEnvData_mapb1$enctype <- 'loc'
+SwEnvData_mapb2$enctype <- 'unloc'
+SwEnvData_mapb3$enctype <- 'both'
+
+SwEnvData_p = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2, SwEnvData_mapb3))
+SwEnvData_p2 = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2))
+SwEnvData_mapb = rbind(SwEnvData_p, SwEnvData_a)
+
+
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(SwEnvData_mapb, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+
+```
+```{r}
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=as.factor(year)), size=1, pch=16) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, shape=factor(enctype)))  +
+  theme_bw() +
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
+  scale_x_continuous(name='Longitude') +  #, breaks=round(Longitude, 1) ) +
+   scale_shape_manual(values=c(8, 17, 15, 1),name='Enc Type', labels=c("Ac_Localized", "Ac_Unlocalized","Sighting")) +
+ scale_color_manual(values = c("#d64161", "#ff7b25",  "#86af49", "#6b5b95"), name='Year') + #feb236", "#92a8d1",
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("All Sperm Whale Encounters") +
+  theme(legend.position="bottom", legend.box='horizontal',legend.text = element_text(size = 8),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+
+ggsave(paste0(dir, 'SW_AllEncMap.png'), width=8, height = 6, units='in', dpi=300)
+
+```
+#Plot temp at 600m - October 2020
+For email to Phoebe, Acoustic Only encounters included but can be changed using SwEnvData_p
+```{r}
+long = seq(min(SwEnvData_mapb$Longitude), max(SwEnvData_mapb$Longitude), 5)
+
+
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=temp600m.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p2, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkcyan')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#000099", "#8000ff", "#ff9900"), name=expression(paste("Temp584m ("^"o", "C",")")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 584 m by Year") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SwMap_T584.png'), width=8, height = 6, units='in', dpi=300)
+```
+Inspecting the area where the foragers are in the NWHI
+Looking at distance to seamounts
+```{r}
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=temp600m.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p2, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkcyan')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#000099", "#8000ff", "#ff9900"), name=expression(paste("Temp584m ("^"o", "C",")")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 584 m by Year") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+```
+
+For Jeff, Oct 12, 2020- depths of constant temp, don't have, but have depths? - NOT WHAT HE WANTED. WANTED DEPTH OF WATER COLUMN WHERE IT WAS 6DEG C
+Acoustics only encounters to be consistent
+```{r}
+
+## SSH ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=ssh.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), 
+                       name=expression(paste("SSH (m)")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("SSH for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_SSH.png'), width=8, height = 6, units='in', dpi=300)
+
+
+
+### SSHsd ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=sshsd.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), name=expression(paste("SSHsd (m)")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("SSHsd for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_SSHsd.png'), width=8, height = 6, units='in', dpi=300)
+
+
+### EKE ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=eke.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), 
+                       name=expression("EKE (m"^2* "/s"^2*")"))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("EKE for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_EKE.png'), width=8, height = 6, units='in', dpi=300)
+
+
+
+### CHLa ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=chla.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), 
+                       name=expression("Chl-a (mg/m"^3*")"))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Chl-a for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_chla.png'), width=8, height = 6, units='in', dpi=300)
+
+
+### SST ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=sst.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#0033cc","#66ff66","#ff0000"), 
+                       name=expression(paste("SST ("^"o", "C",")")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("SST for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_SST.png'), width=8, height = 6, units='in', dpi=300)
+
+
+
+
+### Wave Power ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=wavepower.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 4),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), 
+                       name='WavePower kW/m')  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Wave Power for All Surveys") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+ggsave(paste0(dir, 'SwMap_WP.png'), width=8, height = 6, units='in', dpi=300)
+
+
+## Temp at 584m ####
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=temp600m.r, shape=factor(year)), size=1.2) +
+  geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), name=expression(paste("Temp584m ("^"o", "C",")")))  +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Temps at 584 m by Year") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SwMap_T584green.png'), width=8, height = 6, units='in', dpi=300)
+
+
+
+
+
+
+
+```
+
+
+This includes different types of encounters
+```{r}
 ggplot(SwEnvData_mapb, aes(lon, lat)) +
   geom_point(aes(color=as.factor(year), shape=enctype), size=3) +
   theme_bw() +

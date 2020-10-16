@@ -237,7 +237,7 @@ saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', g
 
 ## Generalized Additive Models
 The data are treated as count data, number of sperm whale encounters per cell, and we used the negative binomial distribution to model the response variable for comparison with the Tweedie distribution. 
-We used thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models.The log of the effort was included as an offset to account for the variation in effort per cell.
+We used thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models. The log of the effort was included as an offset to account for the variation in effort per cell.
 
 
 ### 25 km spatial scale
@@ -253,7 +253,12 @@ Load training and test data
 #seed 1
 trainComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_Comb.rda')  ))
 testComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_Comb.rda')  ))
-
+trainComb$log.chla <- scale(log(trainComb$chla.r))
+trainComb$log.eke <- scale(log(trainComb$eke.r))
+trainComb$log.wp <- scale(log(trainComb$wavepower.r))
+testComb$log.chla <- scale(log(testComb$chla.r))
+testComb$log.eke <- scale(log(testComb$eke.r))
+testComb$log.wp <- scale(log(testComb$wavepower.r))
 ```
 
 # __Model Selection__
@@ -266,7 +271,7 @@ testComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',
 
 ```{r}
 require(mgcv)
-nbComb <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3)  + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+nbComb <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3)  + s(d2smt, k=3) +  s(sst, k=3) + s(log.chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 summary(nbComb)
         
 ```
@@ -334,7 +339,7 @@ gam.check(twComb)
 ```{r echo=FALSE}
 # * Does NOT include sighted acoustic encounters
 
-nbCombb <- gam(pa ~ s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3)  + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+nbCombb <- gam(pa ~ s(sst, k=3) + s(log.chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3)  + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 summary(nbCombb)
 
 ```
@@ -348,13 +353,13 @@ scheme = 1, shade = T, shade.col = 'orange', all.terms = TRUE, main='Best NegBin
 
 ```{r echo=FALSE}
 colnames(trainComb)[30] <- 'SST'
-colnames(trainComb)[31] <- 'Chla'
-colnames(trainComb)[32] <- 'Temp600m'
+colnames(trainComb)[57] <- 'log.Chla'
+colnames(trainComb)[32] <- 'Temp584m'
 colnames(trainComb)[38] <- 'SSH'
 colnames(trainComb)[39] <- 'SSHsd'
 colnames(testComb)[30] <- 'SST'
-colnames(testComb)[31] <- 'Chla'
-colnames(testComb)[32] <- 'Temp600m'
+colnames(testComb)[57] <- 'log.Chla'
+colnames(testComb)[32] <- 'Temp584m'
 colnames(testComb)[38] <- 'SSH'
 colnames(testComb)[39] <- 'SSHsd'
 ```
@@ -386,7 +391,7 @@ Includes 2D Lat-Lon smoother to account for spatial structure in the data and fi
   * SST, Chlorophyll and SSHsd remain significant  
 
 ```{r}
-nbCombLL <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+nbCombLL <- gam(pa ~ s(Longitude, Latitude, k=10) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 summary(nbCombLL)
 AIC(nbCombLL)
 ```
@@ -511,7 +516,7 @@ $~$
 require(magrittr)
 require(dplyr)
 
-#### For twCombc, no spatial smoother ####
+#### For nb, no spatial smoother ####
 nbTrainFinal <- trainComb %>% mutate(resid = resid(nbCombb), predict = predict(nbCombb))
 predTrain <- predict.gam(nbCombb, type = 'response', se.fit=TRUE)  #calculate MSE for these 
 #to compare with test set. If they're super different, speaks to the genrality of the model

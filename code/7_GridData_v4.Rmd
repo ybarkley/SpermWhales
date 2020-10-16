@@ -6,10 +6,11 @@ output: html_notebook
 editor_options: 
   chunk_output_type: console
 ---
+This code creates the grid and centroids used for calculating the sampling units for the models to incorporate passive acoustic data for any species.
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+Technical Note: All grids and centroids are calculated separately for each survey to more easily accommodate the different timing and trackline data. However, a more recent change is to combine all of teh centroid data for processing the environmental data for each model type (Combined, Acoustics Only, etc). This may take longer, but it's much easier than splitting up the centroids by survey on separate computers and then having to keep track of everything and consolidate it later, ugh. IT'S MUCH EASIER NOW. 
+That said, a loop to load all centroid data is located in the LAST CHUNK of the markdown.
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
 Load functions 
 ```{r}
@@ -23,10 +24,10 @@ library(Distance)
 
 ##Load parameters
 ```{r}
-surveynum = 1641
+surveynum = 1706
 gridsize = 25
-loctype = 'allsw'
-loctype2 = 'all'
+loctype = 'Combined'
+loctype2 = 'Comb'
 
 ```
 
@@ -39,7 +40,7 @@ To revisit a data set:
 Then proceed to 'GRID QC' chunk below.
 ```{r}
 #load grid data
-gridEffort <- readRDS(here::here( paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda') ))
+gridEffort <- readRDS(here::here( paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda') ))
 
 gridEffortNEW <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, 'NEW.rda')))
 gridEffortOLD <- readRDS(here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, 'OLD.rda')))
@@ -60,11 +61,37 @@ centroidAll <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', 
 # convert UTC to POSIXct format, and create a column called "effort" that is TRUE or FALSE
 # Column names needed: Longitude, Latitude, UTC, effort
 gpsAll <- read.csv(paste0('./output/straightPath results/straightPathWeffort_', surveynum, '.csv'), stringsAsFactors = FALSE) 
+unique(gpsAll$join.veffort)
+unique(gpsAll$join.aeffort)
+#TRIM WHITE SPACE IF NEEDED
+gpsAll$join.veffort <- str_trim(gpsAll$join.veffort, side = "right")
+gpsAll$join.aeffort <- str_trim(gpsAll$join.aeffort, side = "right")
+
 
 # gpsAll <- gpsAll %>% mutate_if(is.character, str_trim) #white space after join.veffort!?!?
-gpsAll$effort <- gpsAll$straight == TRUE & (gpsAll$join.aeffort == "on" | gpsAll$join.veffort =="on")
+# gpsAll$effort <- gpsAll$straight == TRUE & (gpsAll$join.aeffort == "on" | gpsAll$join.veffort =="on") # effort used for 'allsw'
+gpsAll$effort <- gpsAll$straight == TRUE & gpsAll$join.aeffort == "on" & gpsAll$join.veffort =="on"  # COMBINED EFFORT: Visual and Acoustics BOTH must be on
+
 gpsAll$Longitude <- ifelse(gpsAll$Longitude <= 0, gpsAll$Longitude + 360, gpsAll$Longitude)
 gpsAll$UTC <- lubridate::ymd_hms(gpsAll$UTC)
+```
+
+```{r}
+#EFFORT CHECKING
+
+# Both should be zero for the combined model
+#when vis is ON and acoustics is OFF, effort should be FALSE
+effVischk=gpsAll[which(gpsAll$join.veffort=='on' & gpsAll$join.aeffort =='off' & gpsAll$straight==TRUE), ]
+which(effVischk$effort == TRUE) #should be zero, don't want TRUE effort if ac is off
+
+#when vis is OFF and acoustics is OFF, effort should still be FALSE
+effACchk=gpsAll[which(gpsAll$join.veffort=='off' &  gpsAll$join.aeffort=='on'   &  gpsAll$straight==TRUE),]
+which(effACchk$effort == TRUE) #should be zero, Don't want this to be false
+#Both outputs should be zero
+
+effTotChk=gpsAll[which(gpsAll$straight==TRUE, (gpsAll$join.veffort=='on' &  gpsAll$join.aeffort=='on')), ]
+
+
 ```
 
 ###subset GPS for troubleshooting
@@ -142,18 +169,19 @@ saveRDS(bigGrid, paste0('output/gridEffort/bigGrids/', 'GRID', surveynum, '_', g
 ```{r}
 #### filter whales by survey 
 # pmDetsub <- dplyr::filter(pmDets, survey == surveynum, loc == 1 | loc == 0 & sid < 999 ) # localized encs and sightings
-pmDetsub <- dplyr::filter(pmDets, survey == surveynum) # all sperm whales
+pmDetsub <- dplyr::filter(pmDets, survey == surveynum) #include all whales for the combined models
 
 # LOAD OVERALL GRID IF NEEDED 
 # This is the overall grid - use 25km trunc_m
-bigGrid <- readRDS( paste0('output/gridEffort/bigGrids/', 'GRID', surveynum, '_', gridsize,'km_', loctype2, '.rda') )
+# bigGrid <- readRDS( paste0('output/gridEffort/bigGrids/', 'GRID', surveynum, '_', gridsize,'km_', loctype2, '.rda') )
+bigGrid <- readRDS( paste0('output/gridEffort/bigGrids/', 'GRID', surveynum, '_', gridsize,'km.rda') )
 
 gridEffort <- doAllGrid(gps = gpsAll,
                      bounds = NULL,
                      dets = pmDetsub,
                      trunc_m = 16215, #as.numeric(summ$ds$width[1]), #METERS
                      dsmodel = detfxn, #NULL or dsm 
-                     pixel = 0.09,
+                     pixel = 0.225,
                      grid = bigGrid$grid,  ###!! Use the correct big grid !!!
                      plot = F)
 
@@ -168,7 +196,7 @@ centroidAll <- gridCentroid(gridEffort, gpsAll) #assigns the 'pa' column where 0
 
 #Save raw gridEffort and centroid data
 
-saveRDS(gridEffort, here::here(paste0('output/gridEffort/', gridsize, ' km-', loctype), paste0('gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
+saveRDS(gridEffort, here::here(  paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda') ))
 
 saveRDS(centroidAll, here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
 ```
@@ -194,6 +222,8 @@ gridIndex
 
 if (length(effdets) == 0 & nrow(effchg) == 0){
 print('All detections are included and have effort')
+} else {
+  print('Some detections missing effort')
 }
 
 if ((nrow(gridIndex) == length(gridEffort$detections$ID)) == TRUE){
@@ -227,8 +257,8 @@ gridEffort$effort$area[GridInd[,2]] # how much effort is in the cell? (Should be
 GridSurroundtmp <-data.frame(t(gridmap[GridInd[,2],]))
 
 GridSurround <- stack(GridSurroundtmp) #output 2 columns, 1: grid cell, 2: ac. ID
-GridSurround$acid <- GridInd[,1]       #add column for ac ID
-GridSurround <- GridSurround[,-2]      #remove 'ind' col of X1...X4 col names
+# GridSurround$acid <- GridInd[,1]       #add column for ac ID
+# GridSurround <- GridSurround[,-2]      #remove 'ind' col of X1...X4 col names
 
 GridEff <- data.frame(gridEffort$effort$area[GridSurround$values]) # get effort in surr cells
 GridDir <- c('S', 'E', 'N', 'W') #make this vector
@@ -253,7 +283,7 @@ actualArea <- as.numeric(st_area(x$grid))
 coveragePct <- round(x$effort$area / actualArea, 3)
 coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
 
-pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECKeff.pdf')), width=11,height=8)
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECKeff2.pdf')), width=11,height=8)
 
 plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.1)
 points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=15, cex = 0.05)
@@ -285,9 +315,9 @@ dev.off()
 
 ##3. Replace whale cells with no effort
 ```{r}
-
+#IF MORE THAN ONE PRESENCE HAS NO EFFORT, DO EACH ONE SEPARATELY, WAAHH
 #change values for gridIndex, effortArea, and actualArea in 'gridEffort$detections' while keeping everything else the same
-CentNew = 1 #c(1,4)  #represents the row number(s) in GridCentJoin that corresponds with the correct dir
+CentNew = 1 #c(1,4)  #represents the row number(s) in GridCentJoin that corresponds with the correct dir, SO S=1, E=2, N=3, W=4
 #!! 'newCell' will change depending on the survey and spatial scale #
 newCell <- GridCentJoin[CentNew,1] # Select the gridIndex for the new cells based on the plot
 
@@ -295,7 +325,7 @@ newEffArea <- gridEffort$effort$area[newCell] # get the effort for each new cell
 newActArea <- actualArea[newCell] # get the new cell's actual area
 
 #This replaces the old cell without effort with info for the new cell in these 3 cols
-effchg2 <- effchg %>% mutate(gridIndex = newCell, effortArea=newEffArea, actualArea=newActArea)
+effchg2 <- effchg[3,] %>% mutate(gridIndex = newCell, effortArea=newEffArea, actualArea=newActArea)
 
 #remove old effchg and replace with new cell info in the detections list
 gridEffort$detections <- gridEffort$detections[-effdets,] #effdets is the index from grid detections
@@ -399,8 +429,14 @@ dbl_prz <- dplyr::filter(centroidAll, abs(diff_mins) > 1440 & pa > 0)
 dbl_idx <- which(gridEffort$detections$gridIndex %in% dbl_prz$effCells == TRUE)
 dbl_det <- gridEffort$detections[dbl_idx,]
 dbl_det <- dbl_det[order(dbl_det$gridIndex),] #detections in order of gridIndex to match dbl_prz
-nrow(dbl_prz) == nrow(dbl_det) #should be true
 
+if ((nrow(dbl_prz) != nrow(dbl_det))==TRUE){ #should be true. IF IT'S NOT, PROBABLY DUE TO >1 whale in the same cell
+#remove duplicated gridIndexes
+dbl_det = dbl_det[!duplicated(dbl_det[ , c("gridIndex")]),]
+nrow(dbl_prz) == nrow(dbl_det)
+} else {
+  print('Same nrow')
+}
 ## For some cells with pa = 1, the start and end times are not within a day of the detection time for the same location (cell centroid). The detection times are compared to the start and end times. Those times that differ by less than a day are used. 
 idt1 = which(abs(difftime(dbl_det$UTC, dbl_prz$start, units = "mins")) < 1440) #find rows where time difference btwn detection and start is less than a day
 idt2 = which(abs(difftime(dbl_det$UTC, dbl_prz$end, units = "mins")) < 1440)   #find rows where time difference btwn detection and end is less than a day
@@ -481,7 +517,7 @@ actualArea <- as.numeric(st_area(x$grid))
 coveragePct <- round(x$effort$area / actualArea, 3)
 coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
 
-pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_CHECKAC.pdf')), width=11,height=8)
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_COMB.pdf')), width=11,height=8)
 
 plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.2)
 points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=16, cex = 0.1)
@@ -528,7 +564,20 @@ dev.off()
 
 ```
 
+## Centroid Consolidate!
+```{r}
+CombCents = NULL
+# AcOnlyEnv = NULL
+# pa1Check = NULL
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+  combi <- readRDS(here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new AcOnly centroids
+                                        'centroids', s, '_', gridsize, 'km_', loctype2, '.rda') ))
 
+  CombCents = rbind(CombCents, combi)  
+  
+}
+saveRDS(CombCents, here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new Combined centroids
+                                        'centroids_AllSurveys', '_', gridsize, 'km_', loctype2, '.rda') ))
 
-
+```
 

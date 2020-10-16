@@ -14,8 +14,8 @@ library(here)
 #### Which Survey? ####
 surveynum = 'AllSurveys'
 gridsize = 25
-loctype = 'AcOnly'
-loctype2 = 'Ac'
+loctype = 'Combined'
+loctype2 = 'Comb'
 
 # centroidData <- sw
 centroidData <- readRDS(here::here( paste0('output/envData/', gridsize, ' km-', loctype, '/', 
@@ -192,7 +192,7 @@ if (envType == 'wp'){
   EnvData_tmp$wavepow = ((1024*(9.8^2))/(64*pi))*EnvData_tmp$Thgt_mean^2*EnvData_tmp$Tper_mean
   # EnvData_tmp$wavepow = ((1024*(9.8^2))/(64*pi))*EnvData_tmp$htsgwsfc_mean^2*EnvData_tmp$perpwsfc_mean
   EnvData_tmp <- EnvData_tmp[, c(1:8, 24, 9:23)] #move wavepow to col 9 to match other datasets using other script
-  saveRDS(EnvData_tmp, paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_',loctype2, '_wavepow.rda'))
+  saveRDS(EnvData_tmp, paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_',loctype2, '_wavepow.rda') )
   
 }
 nrow(matchedDataFinal) == nrow(centroidData)
@@ -204,6 +204,8 @@ envType
 IF SUBSETTING TOTAL DATASETS for WAVE POWER to WORK, COMBINE ALL SUBSETS HERE
 ```{r}
 #(code adapted from EffortCheck.r)
+
+surveynum = 'AllSurveys'
 AcOnlyWavepow = NULL
 for (s in c(1641, 1303, 1604, 1705, 1706)){
   aconlyi <- readRDS(here::here( paste0('output/envData/', gridsize, ' km-', loctype, '/',  #new AcOnly centroids

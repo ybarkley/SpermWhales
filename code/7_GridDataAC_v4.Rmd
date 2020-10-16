@@ -541,6 +541,23 @@ dev.off()
 
 ```
 
+## Centroid Consolidate!
+```{r}
+#Change variables based on the folders as needed.
+CombCents = NULL
+# AcOnlyEnv = NULL
+# pa1Check = NULL
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+  combi <- readRDS(here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new AcOnly centroids
+                                        'centroids', s, '_', gridsize, 'km_', loctype2, '.rda') ))
+
+  CombCents = rbind(CombCents, combi)  
+  
+}
+saveRDS(CombCents, here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new Combined centroids
+                                        'centroids_AllSurveys', '_', gridsize, 'km_', loctype2, '.rda') ))
+
+```
 
 
 

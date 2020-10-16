@@ -1,0 +1,25 @@
+---
+title: "Test Markdown"
+author: "Yvonne Barkley"
+date: "10/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+modAcOnlyBest <- gam(pa ~ s(Depth, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(log.EKE, k=3) + offset(log.effort), data = trainS999, family = nb, link = 'log', select = TRUE, method = "REML")
+
+```{r echo=FALSE, fig.cap='Candidate environmental variables included as predictors for species distribution models.', fig.width=6, fig.height=8}
+## image ####
+require(here)
+require(knitr)
+include_graphics(here('figures/EnvDataTable2.png'))
+```

@@ -130,6 +130,11 @@ ekeZtidya <-readRDS('data\\eke_tidy.rda') #desktop
 # ekeZtidya<-readRDS(here::here('Documents\\PHD\\Chp 3\\data\\eke_tidy.rda')) #NOAA
 # ekeZtidya= filter(ekeZtidyaTMP, date >= minUTC & date < maxUTC)
 
+# write.csv(sshtidya, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\For Zack-data/SSH.csv' )
+# write.csv(sshZtidya, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\For Zack-data/SSHsd.csv' )
+# write.csv(ekeZtidya, 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\For Zack-data/EKE.csv' )
+
+
 ```
 
 

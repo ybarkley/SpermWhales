@@ -24,10 +24,10 @@ YB began combining all centroids to extract the data when putting the AcOnly dat
 
 #LOAD DATA
 ```{r}
-surveynum = 'AllSurveys'
+surveynum = '1641'
 gridsize = 25
-loctype = 'AcOnly'
-loctype2 = 'Ac'
+loctype = 'allsw'
+loctype2 = 'all'
 
 #to remove variables, replace **
 # rm(list = ls()[grep("diff", ls())])
@@ -38,16 +38,29 @@ pmDetsGrid <- gridEffortCleanup$detections
 pmDetsGrid <- pmDetsGrid[, c(1:26,43,45)]
 
 
+
+
 #EFFORT CHECKING
 
-
+# For the combined model
 #when vis is ON and acoustics is OFF, effort should be FALSE
-effVischk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.veffort=='on'& gridEffortCleanup$gps$straight==TRUE & gridEffortCleanup$gps$join.aeffort =='off'), ]
+effVischk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.veffort=='on' & gridEffortCleanup$gps$join.aeffort =='off' & gridEffortCleanup$gps$straight==TRUE), ]
 which(effVischk$effort == TRUE) #should be zero, don't want TRUE effort if ac is off
 
-#when acoustics is ON and vis is OFF, effort should still be TRUE
-effACchk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.aeffort=='on'& gridEffortCleanup$gps$straight==TRUE,gridEffortCleanup$gps$join.veffort=='off' ),]
-which(effACchk$effort == FALSE) #should be zero, Don't want this to be false
+#when vis is OFF and acoustics is OFF, effort should still be FALSE
+effACchk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.veffort=='off' & gridEffortCleanup$gps$join.aeffort=='on'   &  gridEffortCleanup$gps$straight==TRUE),]
+which(effACchk$effort == TRUE) #should be zero, Don't want this to be false
+
+
+
+# ### What scenario is this for?
+# #when vis is ON and acoustics is OFF, effort should be FALSE
+# effVischk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.veffort=='on'& gridEffortCleanup$gps$straight==TRUE & gridEffortCleanup$gps$join.aeffort =='off'), ]
+# which(effVischk$effort == TRUE) #should be zero, don't want TRUE effort if ac is off
+# 
+# #when acoustics is ON and vis is OFF, effort should still be TRUE
+# effACchk=gridEffortCleanup$gps[which(gridEffortCleanup$gps$join.aeffort=='on'& gridEffortCleanup$gps$straight==TRUE,gridEffortCleanup$gps$join.veffort=='off' ),]
+# which(effACchk$effort == FALSE) #should be zero, Don't want this to be false
 
 
 
@@ -457,6 +470,10 @@ Combine data from centroids with aux data from grid detections by cell number
 # connect the centroids for Pm detections and env data with click info from pmDetsGrid
 merge_tmp <- merge(PmEnvPres, pmDetsGrid, by.x = 'effCells', by.y = 'gridIndex')
 
+## 9/28/20 1303 has a duplicate single encounter for A66 for some reason that doesn't occur in the original grid detections. Removing it here.
+# merge_tmp <- merge_tmp[-26,]
+# merge_tmp <- merge_tmp[, -c(45:50)]
+
 merge_tmp2 <- dplyr::select(merge_tmp, c(6,2,23,19:22,1,3,45,4,5,43,27,28,36,35,44,29, everything())) #This contains the presences with the env data from the centroid locations
 
 # merge_tmp2 <- dplyr::select(merge_tmp, c(2,23,19:22,1,3,45,4,5,28,27,everything())) #This contains the presences with the env data from the centroid locations
@@ -488,7 +505,7 @@ Complete1642 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', l
 Complete1642$survey = 1642
 Complete1642$year = 2010
 
-Complete1303 <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('1303_', gridsize, 'km_', loctype2, '_complete')))
+Complete1303 <- readRDS(here::here( paste0('output/envData/', gridsize, ' km-', loctype, '/1303_', gridsize, 'km_', loctype2, '_complete') ))
 Complete1303$survey = 1303
 Complete1303$year = 2013
 
@@ -508,7 +525,7 @@ Complete1706$year = 2017
 # combine1705 <- bind_rows(Complete1705b, Complete1705)
 # saveRDS(assign(dataname, combine1705), here::here(paste0('output/envData/', gridsize, ' km-', loctype), dataname))
 
-CompleteTotal <- bind_rows(Complete1641, Complete1642, Complete1303, Complete1604, Complete1705, Complete1706)   
+CompleteTotal <- bind_rows(Complete1641, Complete1303, Complete1604, Complete1705, Complete1706)   
 
 #convert Longitude of centroids to 0-360
 CompleteTotal$Longitude <- ifelse(CompleteTotal$Longitude<0, CompleteTotal$Longitude+360, CompleteTotal$Longitude)
@@ -518,15 +535,19 @@ CompleteTotal <- CompleteTotal[ , -c(15,18)]  #extra lat lon cols don't need
  
 #filter out distances based on closest distance of a whale.
 # Decided against this since already filtered for bathymetry 700m or deeper
-d2land2 <- data.frame(d2land$ID, d2land$survey, d2land$acid,d2land$bath_m, d2land$dist, d2land$peak)
-max(d2land2$d2land.dist)
+# d2land2 <- data.frame(d2land$ID, d2land$survey, d2land$acid,d2land$bath_m, d2land$dist, d2land$peak)
+# max(d2land2$d2land.dist)
 # CompleteTotal <- filter(CompleteTotal, dist >= -8) #filter for distances closer than 8 km from land.
 
 sum(is.na(CompleteTotal[,18:29]))     # Total NA for env data columns
 colSums(is.na(CompleteTotal[,18:29])) # Total NA per column
+pa1Tot <- filter(CompleteTotal, pa > 0)  
+sum(is.na(pa1Tot[,18:29]))     # Total NA for env data columns
+colSums(is.na(pa1Tot[,18:29]))
+pa1Tot[is.na(pa1Tot$ssh) > 0, ]
 
 
-saveRDS(CompleteTotal, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_raw2.rda')))
+saveRDS(CompleteTotal, here::here(  paste0('output/envData/', gridsize, ' km-', loctype, '/CompletePm_', gridsize, 'km_', loctype2, '_raw.rda')  ))
 
 ```
 
@@ -549,7 +570,7 @@ CompleteScaled <- data.frame(dplyr::select(CompleteTotal, pa:distance), Complete
 write.csv(CompleteScaled, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.csv')), row.names = FALSE)
 
 saveRDS(CompleteScaled, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda')))
-saveRDS(PmScaled, here::here( paste0('output/envData/', gridsize, ' km-', loctype, '/CompletePm_', gridsize, 'km_', loctype2, '_scaledNEW.rda') ))
+# saveRDS(PmScaled, here::here( paste0('output/envData/', gridsize, ' km-', loctype, '/CompletePm_', gridsize, 'km_', loctype2, '_scaledNEW.rda') ))
 
 ```
 

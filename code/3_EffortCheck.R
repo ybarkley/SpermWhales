@@ -1,6 +1,8 @@
 
 #Sept 22, 2020
-
+################################################################
+## GOOD FOR LOADING ALL CENTROIDS TO COMBINE INTO ONE DATAFRAME (originally made for AcOnly, but scroll down for combined models)
+################################################################
 # Checking the centroids for the Acoustics Only models to get the centroids out of the existing environmental dataset.
 
 #Load Centroid data for new Acoustics Only models that include when acoustics is on and disregards the visual effort.
@@ -20,6 +22,7 @@ allsurveys = c(1641, 1303, 1604, 1705, 1706)
 
 
 
+### FOR ACOUSTICS ONLY MODELS
 AcOnlyCents = NULL
 AcOnlyEnv = NULL
 pa1Check = NULL
@@ -60,6 +63,29 @@ for (s in c(1641, 1303, 1604, 1705, 1706)){
 
 saveRDS(AcOnlyCents, here::here( paste0('output/centroids/AcOnly/', gridsize, ' km-', loctype, '/',  #new AcOnly centroids
                                                                  'centroids_AllSurveys', '_', gridsize, 'km_', loctype2, '_AConly.rda') ))
+
+
+
+
+###########################
+### Combined Models
+
+CombCents = NULL
+# AcOnlyEnv = NULL
+# pa1Check = NULL
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+  combi <- readRDS(here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new AcOnly centroids
+                                        'centroids', s, '_', gridsize, 'km_', loctype2, '.rda') ))
+
+  CombCents = rbind(CombCents, combi)  
+  
+}
+saveRDS(CombCents, here::here( paste0('output/centroids/', gridsize, ' km-', loctype, '/',  #new Combined centroids
+                                        'centroids_AllSurveys', '_', gridsize, 'km_', loctype2, '.rda') ))
+
+
+
+
 
 #Old code and plot options
 #verify new AcOnly centroids

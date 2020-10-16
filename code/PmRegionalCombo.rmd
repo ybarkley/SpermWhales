@@ -1,0 +1,700 @@
+---
+title: "Regional Sperm Whale SDMs"
+author: "Yvonne Barkley"
+date: "10/14/2020"
+output:
+ pdf_document:
+    latex_engine: xelatex
+    extra_dependencies: ["flafter"]
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60))
+```
+
+#### This document summarizes the results of the sperm whale distribution regional models. 
+
+
+**Results Summary for Regional Sperm Whale Models**  
+
+The original models incorporated all data from across the Hawaii EEZ resulting in a significant spatial smoother (s(Lon,Lat)) depicting a strong spatial relationship within the data set for most models. The contours of the spatial smoothers showed separate areas of higher encounter rates to the northwest and southeast of Necker Island. Therefore, to account for this spatial variation and test whether relationships with other dynamic variables would become clearer, the data set was split into two separate data sets, one containing data west of Necker Island (NWHI Region) and the other containing data east of Necker Island (MHI Region).
+
+
+```{r echo=FALSE, fig.cap='Spatial contour plots of sperm whale distribution models for the entire study region.', fig.width=4, fig.height=3, fig.align='center'}
+## image ####
+require(here)
+require(knitr)
+include_graphics(here('figures/SwMap_ContourPlotsAll.png'))
+```
+
+
+* Results for the Regional Combined models showed no changes to the important variables or their relationship with sperm whale encounter rate, suggesting there were no temporal effects. The conclusions remain the same.  
+
+* Results for the new Combined data models:  
+  + Combined Model 1 (no spatial smoother) included yearly quarter as an important temporal variable in the model, and all other important variables and relationships were the same except for the exclusion of SSH. The yearly quarter smoother showed a peak in encounter rate for the third quarter (July-Sept), which makes sense since 3 out of 4 surveys included effort during those months.
+  + Combined Model 2 with the spatial smoother did not select either temporal variable, with the only difference being the selection of SST as significant.
+
+
+### Research Hypothesis: Sperm whales are found in deep, productive offshore waters.  
+
+#### To address my hypothesis, I built generalized additive models (GAMs) to:  
+##### 1. Model the relationships between biologically relevant environmental predictors and sperm whale encounter rate. Sperm whale encounter rate represents the number of groups of sperm whales occurring within a grid cell as the unit of analysis. The estimated number of individual sperm whales per grid cell was not used as the response variable because it cannot be accurately estimated using acoustics data at this time.
+
+
+##### 2. Examine whether these relationships differed depending on the type of data included in the models by configuring the following model types:  
+  * **Acoustics Only models**    
+     * These models included sperm whale encounters that were ONLY detected by acoustics (both localized and unlocalized)  
+     * Included only data for times when the acoustics team was 'on effort'
+     * n = 144 sperm whale encounters
+  * **Combined Data models**    
+     * Models included both sperm whale sightings and acoustic encounters
+     * Included only data for times when both visuals and acoustics teams were 'on effort'
+     * n = 192 sperm whale encounters
+  
+
+##### 3. Evaluate differences between 2 types of behavioral sperm whale groups using characteristics of their echolocation clicks. Groups were defined as:  
+ * **Foraging Groups**    
+     * Included groups with regular clicks or creaks, which exhibit an inter-click interval between 0.5 - 1 s and indicates foraging behavior 
+     * n = 105 sperm whale encounters
+ * **Social Groups**    
+     * Included groups with codas, which are indicative of communication between individuals. Codas consist of varying inter-click intervals
+     * n = 46 sperm whale encounters
+
+
+The different GAMs will provide information about the overall spatial distribution patterns of sperm whales, whether different methods for detecting sperm whales affect the modeled relationships between sperm whale encounter rates and the environment, and use information from the acoustic data to test whether distribution patterns can be further delineated by behavior. 
+
+$~$
+
+
+### Model Construction
+A 25-km spatial resolution was used to compute the unit of analysis for sperm whale encounter rate. Preliminary models also tested a 10-km spatial resolution, but given the homogeneous nature of the data, increasing the spatial resolution did not result in any significant changes to the strength of correlations between encounter rate and environmental variables. 
+
+Model data sets were divided into train and test data sets using a 70/30 split. All models were fit using thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models. Models were also tested with a 2D spatial smoother ( s(Lon, Lat, k=10) ) to account for spatial autocorrelation within the data. The number of knots was increased to 10 based on model diagnostics to account for the complexity of the spatial smoother and minimize the risk of overfitting the data. The log of the effort was included as an offset to account for the variation in search effort per grid cell. 
+
+GAMs were fitted using a negative binomial and Tweedie distribution with a log-link function since both distributions are suitable for data sets consisting of relatively sparse count data with large numbers of zeros. Smoothing parameters were optimized using restricted maximum likelihood (REML). Model selection was performed using automatic term selection, which approximated p-values for each predictor. Non-significant variables (α = 0.05) were excluded. 
+
+* Note: Initial models included all candidate predictors. Non-significant variables were excluded in an iterative manner. The best-fit models included only the significant variables and the maximum adjusted $R^2$ values and explained deviance.
+
+Overall, the negative-binomial models out-performed models built using a Tweedie distribution based on AIC, adj. $R^2$, and explained deviance and inspection of diagnostic plots. Here, I present only the best-fit models with and without spatial smoothers to compare model performance and significant predictor variables to address my hypothesis and research objectives.
+
+$~$
+
+
+
+### Environmental Variables  
+All models incorporated biologically relevant environmental predictors that represented bathymetric features or oceanographic processes that act as proxies for mechanisms driving sperm whale prey distribution. The correlation between environmental variables was tested prior to model fitting. All variables included in the table below resulted in correlation coefficients < |0.6|.
+
+```{r echo=FALSE, fig.cap='Candidate environmental variables included as predictors for species distribution models.', fig.width=4, fig.height=6}
+## image ####
+require(here)
+require(knitr)
+include_graphics(here('figures/EnvDataTable3.png'))
+```
+
+```{r, echo=F, eval=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+library(lubridate)
+```
+
+```{r echo=F}
+#Values for ACOUSTICS ONLY MODELS
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'AcOnly'
+loctype2 = 'Ac'
+
+#data has logged and time variables made in PmModelResults_v2
+PmAcOnly <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+```
+
+```{r echo=FALSE, eval=FALSE}
+## AcONLY: SPLIT DATA INTO NW AND MHI REGIONS ####
+ #Necker is at 23.575, -164.700, so splitting it by LONGITUDE at -164.700
+necker = -164.700+360
+PmAcOnlyNWHI <- subset( PmAcOnly, Longitude <= necker )
+PmAcOnlyMHI <-  subset( PmAcOnly, Longitude >  necker )
+```
+
+```{r echo=FALSE, eval=FALSE}
+# AcONLY REGIONAL: REDO TRAIN AND TEST SETS IF NEEDED ####
+
+dataPm = PmAcOnlyMHI
+
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+trainAcOnly = NULL
+testAcOnly = NULL
+seed = 1
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(dataPm, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 & sid == 999)# & loc == 1) #for S999 versions
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainAcOnly = rbind( trainAcOnly, trainAll )
+testAcOnly  = rbind( testAcOnly,  testAll  )
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+
+#NWHI
+# saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_S999nw.rda')  ))
+# saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_S999nw.rda')  ))
+
+#MHI
+saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_S999mh.rda')  ))
+saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_S999mh.rda')  ))
+
+```
+
+```{r echo=FALSE, results='hide'}
+## AcONLY REGIONAL: TRAINING AND TEST DATA ####
+#seed 1, includes log variables
+trainCombnw <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   
+                                           gridsize, 'km_', loctype2, '_S999nw.rda')  ))
+testCombnw <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     
+                                          gridsize, 'km_', loctype2, '_S999nw.rda')  ))
+trainCombmh <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   
+                                           gridsize, 'km_', loctype2, '_S999mh.rda')  ))
+testCombmh <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     
+                                          gridsize, 'km_', loctype2, '_S999mh.rda')  ))
+
+## Oct 15, for some reason, NAs introduced to a couple of rows of TRAINING DATA ONLY. MURDER THEM.
+trainCombnw <- trainCombnw[-which(is.na(trainCombnw[ , 1])), ]
+which(is.na(trainCombnw[ , 1]))  #double check
+nrow(trainCombnw)
+# testCombnw <- trainCombnw[-which(is.na(testCombnw[ , 1])), ]
+which(is.na(testCombnw[ , 1]))  #double check
+nrow(testCombnw)
+
+
+trainCombmh <- trainCombmh[-which(is.na(trainCombmh[ , 1])), ]
+which(is.na(trainCombmh[ , 1]))  #double check
+nrow(trainCombmh)
+# testS999mh <- testS999mh[-which(is.na(testS999mh[ , 1])), ]
+which(is.na(testCombmh[ , 1]))  #double check
+nrow(testCombmh)
+
+colnames(trainCombnw)[32] <- 'Temp584m'
+colnames(trainCombnw)[34] <- 'Depth'
+colnames(trainCombnw)[38] <- 'SSH'
+colnames(trainCombnw)[58] <- 'log.EKE'
+
+colnames(trainCombmh)[32] <- 'Temp584m'
+colnames(trainCombmh)[34] <- 'Depth'
+colnames(trainCombmh)[38] <- 'SSH'
+colnames(trainCombmh)[58] <- 'log.EKE'
+
+```
+
+```{r echo=F}
+#Values for COMBINED MODELS ####
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+
+#data has logged and time variables made in PmModelResults_v2
+PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+necker = -164.700+360
+PmComboNWHI <- subset( PmCombo, Longitude <= necker )
+PmComboMHI <-  subset( PmCombo, Longitude >  necker )
+
+
+
+```
+
+```{r eval=FALSE, echo=FALSE}
+## COMBO REGIONAL: REDO TRAIN TEST IF NEEDED ####
+
+# Change saving at bottom too!!
+dataPm = PmComboMHI
+
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+trainComb = NULL
+testComb = NULL
+seed = 2
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(dataPm, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainComb = rbind( trainComb, trainAll )
+testComb  = rbind( testComb,  testAll )
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+
+#NWHI
+# saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Combnw.rda')  ))
+# saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Combnw.rda')  ))
+
+#MHI
+saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Combmh.rda')  ))
+saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Combmh.rda')  ))
+
+# nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
+# nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
+```
+
+```{r echo=FALSE, results='hide'}
+## COMBO REGIONAL: TRAINING AND TEST DATA  ####
+# Only includes S999, no sightings
+trainCombnw <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   
+                                         gridsize, 'km_', loctype2, '_Combnw.rda')  ))
+testCombnw <-  readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     
+                                        gridsize, 'km_', loctype2, '_Combnw.rda')  ))
+trainCombmh <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   
+                                         gridsize, 'km_', loctype2, '_Combmh.rda')  ))
+testCombmh <-  readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     
+                                        gridsize, 'km_', loctype2, '_Combmh.rda')  ))
+# 
+trainCombnw <- trainCombnw[-which(is.na(trainCombnw[ , 1])), ]
+which(is.na(trainCombnw[ , 1]))  #double check
+nrow(trainCombnw)
+# testCombnw <- trainS999nw[-which(is.na(testCombnw[ , 1])), ]
+which(is.na(testCombnw[ , 1]))  #double check
+nrow(testCombnw)
+
+
+trainCombmh <- trainCombmh[-which(is.na(trainCombmh[ , 1])), ]
+which(is.na(trainCombmh[ , 1]))  #double check
+nrow(trainCombmh)
+# testS999mh <- testS999mh[-which(is.na(testS999mh[ , 1])), ]
+which(is.na(testCombmh[ , 1]))  #double check
+nrow(testCombmh)
+
+
+
+colnames(trainCombnw)[32] <- 'Temp584m'
+colnames(trainCombnw)[34] <- 'Depth'
+colnames(trainCombnw)[38] <- 'SSH'
+colnames(trainCombnw)[58] <- 'log.EKE'
+colnames(trainCombnw)[39] <- 'SSHsd'
+colnames(trainCombmh)[32] <- 'Temp584m'
+colnames(trainCombmh)[34] <- 'Depth'
+colnames(trainCombmh)[38] <- 'SSH'
+colnames(trainCombmh)[58] <- 'log.EKE'
+colnames(trainCombmh)[39] <- 'SSHsd'
+
+```
+
+
+### **Combined REGIONAL MODELS**
+
+```{r eval=FALSE, echo=FALSE, fig.cap='Environmental variables included as predictors in the Combined models.'}
+#Acoustics Only histograms of environmental data
+par(mfrow = c(3, 4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+
+dataSet = PmCombo[,c(1,30,57,32,59,34, 37:39,58,41)]   #raw values and log values
+colnames(dataSet) <- c('pa', 'sst', 'log chla', 'temp584m', 'log wavepower', 'depth', 'distland', 'ssh', 'sshsd', 'log eke', 'distseamt')
+
+loopVec <-  2:11  #columns from PmCombo to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[, c(1,j)]
+
+      hist(datPlot[,2], main = colnames(datPlot)[2], ylab='frequency', xlab = '')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Environmental Predictors for Combined Models, ", gridsize, 'km grid'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+```
+
+#### 1) Combined Regional Models 1   
+* No spatial smoother included
+
+
+#### NWHI Region  
+
+
+gam(EncRate ~ s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) 
+
+The NWHI regional model using only acoustics data selected Temp at 584m, SSHsd, and quarter of year as the important variables. The only noticeable difference is the smoother for Temp at 584m in that it increases and then plateaus. This makes sense given that the temperature is warmer in this region overall with increasing temperatures towards the north and west edges of the study region. 
+
+
+```{r echo=FALSE, eval=FALSE}
+#SOME DEFINITIONS IN ONE PLACE: ####
+#From https://corporatefinanceinstitute.com/resources/knowledge/other/adjusted-r-squared/
+# R2 adj: Compared to a model with additional input variables, a lower adjusted R-squared indicates that the additional input variables are not adding value to the model. R-squared explains the degree to which the predictor variables explain the variation of the response variable, but does not consider the additional input of more predictor variables. R2 adjusted considers whether addn'l variables other contributing to the model.
+
+#From https://noamross.github.io/gams-in-r-course/chapter2
+#The partial effects plots show the component effect of each smooth term in the best-fit Combined model, which add up to the overall prediction.
+#Partial residuals represent the difference between the partial effect and the data, after accounting for the partial effects of all other variables.
+#It's often useful to plot the standard errors of a partial effect term combined with the standard errors of the model intercept. This is because confidence intervals at the mean value of a variable can be very tiny, and don't reflect overall uncertainty in our model. Using the seWithMean argument adds in this uncertainty.
+#MSE: calculate MSE for training data to compare with test set. If they're super different, speaks to the genrality of the model. Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+nrow(filter(trainS999nw, pa > 0))
+nrow(filter(trainS999mh, pa > 0))
+nrow(filter(testS999nw, pa > 0))
+nrow(filter(testS999mh, pa > 0))
+
+```
+
+
+```{r echo=FALSE, eval=FALSE}
+## Test Time Variables ####
+## Combo NWHI ####
+#Checking if temporal variation exists by including year and quarter into the models
+#Add quarter and year to full model first
+modComboNW <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year,k=3) + s(qtr,k=3) , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modComboNW)
+
+modComboNW2 <- gam(pa ~ s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort)  , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modComboNW2)
+#NWHI CONCLUSION: Temporal variables 'quarter' was significant. 
+
+
+## Combo MHI ####
+modComboMH <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year,k=3) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modComboMH)
+
+modComboMH2 <- gam(pa ~ s(Depth, k=3) + s(sst.r, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + s(log.EKE, k=3) + offset(log.effort) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modComboMH2)
+```
+
+```{r echo=FALSE}
+require(mgcv)
+
+modComboBestNW <-  gam(pa ~ s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort)  , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modComboBestNW) #
+```
+
+```{r echo=FALSE, fig.cap = 'Combined NWHI Regional Model 1: The partial effects of each simple smooth term.', fig.width=5, fig.height=4 }
+par(mar=c(4,4,4,3),mfrow = c(1,2))
+
+plot(modComboBestNW, select=1, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,2),
+scheme = 1, xlab = 'Temp at 584 m (ºC)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+plot(modComboBestNW, select=2, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,2),
+scheme = 1, xlab = 'SSHsd (m)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+# plot(modComboBestNW, select=3, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,2),
+# scheme = 1, xlab = 'Quarter of Year', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+mtext(paste0("Combined Models: NWHI Region"), side=3, outer=TRUE , cex=1, font=1, padj=3)
+
+# plot(modComboBestNW, select=4, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,2),
+# scheme = 1, xlab = 'EKE (m/s)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+#### Explained Deviance = `round(((twS999b$null.deviance-twS999b$deviance)/twS999b$null.deviance)*100, 1)`
+
+```
+
+
+
+#### MHI Region  
+
+
+gam(EncRate ~ s(Depth, k=3) + s(sst.r, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + s(log.EKE, k=3) + s(qtr,k=3) + offset(log.effort)
+
+The MHI regional model using combine data selected several important variables, some of which had not been selected in previous models: Depth, Distance to Seamount, Temp at 584m, log EKE, and quarter of year. 
+
+
+```{r echo=FALSE}
+require(mgcv)
+
+modComboBestMH <-  gam(pa ~ s(Depth, k=3) + s(sst.r, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + s(log.EKE, k=3) + offset(log.effort) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modComboBestMH)
+```
+
+```{r echo=FALSE, fig.cap = 'Combined MHI Regional Model 1: The partial effects plots show the component effect of each simple smooth term.', fig.width=5, fig.height=4 }
+par(mar=c(4,4,2,3),mfrow = c(3,2))
+
+plot(modComboBestMH, select=1, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, xlab = 'Depth (m)', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBestMH, select=2, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'SST (ºC)', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBestMH, select=3, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'Dist to Seamount (m)', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBestMH, select=4, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, xlab = 'Temp at 584 m (ºC)', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBestMH, select=5, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = expression("log.EKE (m"^2* "/s"^2*")"), shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBestMH, select=6, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-7,3),
+scheme = 1, xlab = 'Quarter of Year', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+mtext(paste0("Combined Models: MHI Region"), side=3, outer=TRUE , cex=1, font=1, padj=1)
+
+# plot(modComboBestNW, select=4, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,2),
+# scheme = 1, xlab = 'EKE (m/s)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+#### Explained Deviance = `round(((twS999b$null.deviance-twS999b$deviance)/twS999b$null.deviance)*100, 1)`
+
+```
+
+
+#### 2) Combined Regional Models 2 
+* Spatial 2D smoother included  
+
+The spatial smoother was still significant for both regional models indicating strong spatial structure even after attempting to control for it by splitting the data set. Fewer additional variables were significant with the spatial smoother, including SSDsh for the NWHI region and logEKE for the MHI region.
+
+
+#### NWHI Region
+
+
+gam(EncRate ~ s(Longitude, Latitude, k=10) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort)
+
+A similar relationship with SSHsd persisted in the NWHI region as previous models. While the spatial smoother was still significant, it showed a less dramatic pattern in the contour plot likely due to treating the NWHI separately from the MHI region.
+
+```{r echo=FALSE, eval=FALSE, fig.cap='2D-CHECKING TIME VARIABLES'}
+#Checking if temporal variation exists by including year and quarter into the models
+#Add quarter and year to full model first
+modCombo2Dnw <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year,k=3) + s(qtr,k=3) , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Dnw)
+
+modCombo2D2nw <- gam(pa ~ s(Longitude, Latitude, k=10) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort)  , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2D2nw)
+#CONCLUSION NWHI: Still a signif spatial smooth, but shows similar pattern as original models.
+
+modCombo2Dmh <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year,k=3) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Dmh)
+
+modCombo2D2mh <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + offset(log.effort) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2D2mh)
+#CONCLUSION MHI: Still a signif spatial smooth, but shows similar pattern as original models.
+
+```
+```{r echo=FALSE}
+require(mgcv)
+## BEST NWHI 2D MODEL ####
+colnames(trainCombnw)[39] <- 'SSHsd'
+# colnames(testS999nw)[39] <- 'SSHsd'
+# colnames(trainCombmh)[58] <- 'log.EKE'
+# colnames(testS999mh)[58] <- 'log.EKE'
+
+modComboBest2DNW <- gam(pa ~ s(Longitude, Latitude, k=10) + s(log.chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort)  , data = trainCombnw, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modComboBest2DNW)
+```
+
+```{r echo=FALSE, fig.cap='Combined NWHI Regional Model 2: SSHsd and spatial smoother were significant. Purple dots on contour represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.', fig.height=8}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+
+# plot(modComboBest2DNW, select=1, residuals = FALSE, pch = 20, cex = 0.25,
+# scheme = 1, xlab = 'Depth (m)', shade = T, shade.col = 'lightgoldenrod1', seWithMean = TRUE)
+
+plot(modComboBest2DNW, select=2, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'log Chl a (mg m-3)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+plot(modComboBest2DNW, select=3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, xlab = 'Temp at 584 m (ºC)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+plot(modComboBest2DNW, select=4, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'SSHsd (m)', shade = T, shade.col = 'honeydew2', seWithMean = TRUE)
+
+# plot(modComboBest2DNW, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'honeydew2', all.terms = TRUE, xlab='SSHsd (m)', seWithMean = TRUE )
+
+par(mfrow = c(1,1))
+plot(modComboBest2DNW, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainCombnw, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
+```
+
+
+
+#### MHI Region  
+
+
+gam(EncRate ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + offset(log.effort) + s(qtr,k=3)
+
+Including the spatial smoother for the MHI region highlighted the area of higher whale encounter rate, but did not perform as well as Model 1 for this region. The log-transformed EKE was selected as a significant variable, showing decreasing encounter rate with increasing log EKE.
+
+
+```{r echo=FALSE}
+## BEST MHI 2D MODEL ####
+modComboBest2DMH <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distseamt.r, k=3) + s(Temp584m, k=3) + offset(log.effort) + s(qtr,k=3) , data = trainCombmh, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modComboBest2DMH)
+```
+
+```{r echo=FALSE, fig.cap='Combined MHI Regional Model 2: logEKE and the spatial smoother were significant. Purple dots on contour represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.', fig.height=8}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+
+plot(modComboBest2DNW, select=2, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'log Chl a (mg m-3)', shade = T, shade.col = 'lightgoldenrod2', seWithMean = TRUE)
+
+plot(modComboBest2DNW, select=3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, xlab = 'Temp at 584 m (ºC)', shade = T, shade.col = 'lightgoldenrod2', seWithMean = TRUE)
+
+plot(modComboBest2DNW, select=4, residuals = FALSE, pch = 20, cex = 0.25, 
+scheme = 1, xlab = 'SSHsd (m)', shade = T, shade.col = 'lightgoldenrod2', seWithMean = TRUE)
+
+# plot(modComboBest2DMH, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'lightgoldenrod2', all.terms = TRUE, xlab=expression("log.EKE (m"^2* "/s"^2*")"), seWithMean = TRUE )
+par(mfrow = c(1,1))
+plot(modComboBest2DMH, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainCombmh, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
+```
+
+
+```{r echo=FALSE}
+## COMBINED: PREDICTIONS ####
+require(magrittr)
+require(dplyr)
+require(mgcv)
+## For best fit models ##
+colnames(testCombnw)[32] <- 'Temp584m'
+colnames(testCombnw)[34] <- 'Depth'
+colnames(testCombnw)[38] <- 'SSH'
+colnames(testCombnw)[58] <- 'log.EKE'
+colnames(testCombnw)[39] <- 'SSHsd'
+
+colnames(testCombmh)[32] <- 'Temp584m'
+colnames(testCombmh)[34] <- 'Depth'
+colnames(testCombmh)[38] <- 'SSH'
+colnames(testCombmh)[58] <- 'log.EKE'
+colnames(testCombmh)[39] <- 'SSHsd'
+# Combined: NWHI ####
+#no smoother
+nbTrainFinal <- trainCombnw %>% mutate(resid = resid(modComboBestNW), predict = predict(modComboBestNW))
+predTrain <- predict.gam(modComboBestNW, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+nbTrainFinal$fit <- predTrain
+nbMSEtrainCbNW <- mean((nbTrainFinal$pa - nbTrainFinal$fit)^2)  #MSE
+
+nbPred <- predict.gam(modComboBestNW, newdata = testCombnw, type = 'response', se.fit = TRUE)
+nbTestFinal <- data.frame(testCombnw, fit = nbPred$fit, se.fit=nbPred$se.fit)
+nbMSEtestCbNW <- mean((nbTestFinal$pa - nbTestFinal$fit)^2) #MSE
+
+#with smoother
+nbTrainLL <- trainCombnw %>% mutate(resid = resid(modComboBest2DNW), predict = predict(modComboBest2DNW))
+predTrainLL <- predict.gam(modComboBest2DNW, type = 'response')  
+nbTrainLL$fit <- predTrainLL
+
+#using scale of 0,1,2 makes this hard to interpret
+nbMSEtrainLLCbNW <- mean((nbTrainLL$pa - nbTrainLL$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+nbPredLL <- predict.gam(modComboBest2DNW, newdata = testCombnw, type = 'response', se.fit = TRUE)
+nbTestLL <- data.frame(testCombnw, fit = nbPredLL$fit, se.fit=nbPredLL$se.fit)
+nbMSEtestLLCbNW <- mean((nbTestLL$pa - nbTestLL$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+# NWHI AIC
+nbAICCbNW <- AIC(modComboBestNW)
+nbAICLLCbNW <- AIC(modComboBest2DNW)
+
+# Explained Deviance
+nbExpDevCbNW = round(((modComboBestNW$null.deviance-modComboBestNW$deviance)/modComboBestNW$null.deviance)*100, 2)
+nbExpDevLLCbNW = round(((modComboBest2DNW$null.deviance-modComboBest2DNW$deviance)/modComboBest2DNW$null.deviance)*100, 2)
+
+
+# Combined: MHI PREDICTIONS ####
+#no smoother
+nbTrainFinal <- trainCombmh %>% mutate(resid = resid(modComboBestMH), predict = predict(modComboBestMH))
+predTrain <- predict.gam(modComboBestMH, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+nbTrainFinal$fit <- predTrain
+nbMSEtrainAcMH <- mean((nbTrainFinal$pa - nbTrainFinal$fit)^2)  #MSE
+
+nbPred <- predict.gam(modComboBestMH, newdata = testCombmh, type = 'response', se.fit = TRUE)
+nbTestFinal <- data.frame(testCombmh, fit = nbPred$fit, se.fit=nbPred$se.fit)
+nbMSEtestAcMH <- mean((nbTestFinal$pa - nbTestFinal$fit)^2) #MSE
+
+#with smoother
+nbTrainLL <- trainCombmh %>% mutate(resid = resid(modComboBest2DMH), predict = predict(modComboBest2DMH))
+predTrainLL <- predict.gam(modComboBest2DMH, type = 'response')  
+nbTrainLL$fit <- predTrainLL
+#using scale of 0,1,2 makes this hard to interpret
+nbMSEtrainLLAcMH <- mean((nbTrainLL$pa - nbTrainLL$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+nbPredLL <- predict.gam(modComboBest2DMH, newdata = testCombmh, type = 'response', se.fit = TRUE)
+nbTestLL <- data.frame(testCombmh, fit = nbPredLL$fit, se.fit=nbPredLL$se.fit)
+nbMSEtestLLAcMH <- mean((nbTestLL$pa - nbTestLL$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+# AIC MHI
+nbAICAcMH <- AIC(modComboBestMH)
+nbAICLLAcMH <- AIC(modComboBest2DMH)
+
+# Explained Deviance
+nbExpDevAcMH = round(((modComboBestMH$null.deviance-modComboBestMH$deviance)/modComboBestMH$null.deviance)*100, 2)
+nbExpDevLLAcMH = round(((modComboBest2DMH$null.deviance-modComboBest2DMH$deviance)/modComboBest2DMH$null.deviance)*100, 2)
+
+
+# make summary table of metrics
+table = matrix(NA, nrow = 4, ncol = 7)
+colnames(table) = c("Region", "Data Type","Models", "ExpDev", "AIC", "MSEtrain", "MSEtest")
+
+# enter info by row
+table[1,] <- c("NWHI", "Combined", "Model 1", paste0(nbExpDevCbNW, '%'), round(nbAICCbNW, 2), round(nbMSEtrainCbNW,3), round(nbMSEtestCbNW,3))
+table[2,] <- c("NWHI", "Combined", "Model 2", paste0(nbExpDevLLCbNW, '%'), round(nbAICLLCbNW,2), round(nbMSEtrainLLCbNW,3), round(nbMSEtestLLCbNW,3))
+table[3,] <- c("MHI", "Combined", "Model 1", paste0(nbExpDevAcMH, '%'), round(nbAICAcMH, 2), round(nbMSEtrainAcMH,3), round(nbMSEtestAcMH,3))
+table[4,] <- c("MHI", "Combined", "Model 2", paste0(nbExpDevLLAcMH, '%'), round(nbAICLLAcMH,2), round(nbMSEtrainLLAcMH,3), round(nbMSEtestLLAcMH,3))
+
+
+
+require(knitr)
+kable(table, caption = "Performance Metrics for Combined Models")
+```
+Table 2 presents performance metrics for the two best Combined models, showing that both regionals with *with* the spatial smoother performed relatively better than Model 1. 
+
+
