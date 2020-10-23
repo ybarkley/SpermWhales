@@ -287,7 +287,8 @@ diffd2smtdf <- LRbest[LRbest$ID %in% d2smtID,] #pull out the rows in LRbest that
 #PLOT ALL DIFFERENCE vs DISTANCE plots
 ```{r}
 require(Cairo)
-Cairo(here::here('figures', paste0('LeftVsRIght_DiffInDists.png')), width=10,height=10, units='in', dpi=300, bg='white')
+Cairo(here::here('figures', paste0('LeftVsRIght_DiffInDists2.png')), width=10,height=10, units='in', dpi=300, bg='white')
+
 par(mfrow=c(4,3),mar=c(4,4,3,3))
 
 plot(lrbestyay$m, abs(lrbestyay$diffbath),  xlab = 'Mean Distance (km)', ylab = 'Diff in Depth (m)')
@@ -295,43 +296,105 @@ lmbest <- lm(abs(lrbestyay$diffbath) ~ lrbestyay$m)
 pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
-text(max(lrbestyay$m)*0.95, min(abs(lrbestyay$diffbath))*20, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffbath))*0.9, paste0( 'R2 = ',round(r2,2)))
 abline(coefficients(lmbest))
-summary(lmbest)
-plot(fitted(lmbest), resid(lmbest))
-abline(0,0)
-qqnorm(resid(lmbest))
-qqline(resid(lmbest))
-plot(density(resid(lmbest)))
+# summary(lmbest)
+# plot(fitted(lmbest), resid(lmbest))
+# abline(0,0)
+# qqnorm(resid(lmbest))
+# qqline(resid(lmbest))
+# plot(density(resid(lmbest)))
 
 plot(lrbestyay$m, abs(lrbestyay$diffdland),  xlab = 'Mean Distance (km)', ylab = 'Diff in Dist2Land (km)')
 lmbest <- lm(abs(lrbestyay$diffdland) ~ lrbestyay$m)
 pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
-text(max(lrbestyay$m)*0.95, min(abs(lrbestyay$diffdland))*20, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdland))*0.9, paste0( 'R2 = ',round(r2,2)))
 abline(coefficients(lmbest))
-summary(lmbest)
+# summary(lmbest)
 
 plot(lrbestyay$m, abs(lrbestyay$diffslp),   xlab = 'Mean Distance (km)', ylab = 'Diff in Slope (deg)')
+lmbest <- lm(abs(lrbestyay$diffslp) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffslp))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
+
 plot(lrbestyay$m, abs(lrbestyay$diffasp),   xlab = 'Mean Distance (km)', ylab = 'Diff in Aspect (deg)')
+lmbest <- lm(abs(lrbestyay$diffasp) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffasp))*0.99, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
 
 plot(lrbestyay$m, abs(lrbestyay$diffdmst),  xlab = 'Mean Distance (km)', ylab = 'Diff in Dist2Seamt(km)')
 lmbest <- lm(abs(lrbestyay$diffdmst) ~ lrbestyay$m)
 pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
-text(max(lrbestyay$m)*0.95, min(abs(lrbestyay$diffdmst))*20, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdmst))*0.9, paste0( 'R2 = ',round(r2,2)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffsst),   xlab = 'Mean Distance (km)', ylab = 'Diff in SST (°C)')
-plot(lrbestyay$m, abs(lrbestyay$chla_m),    xlab = 'Mean Distance (km)', ylab = 'Diff in Chl a (mg m-3)')
+lmbest <- lm(abs(lrbestyay$diffsst) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsst))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
 
-plot(lrbestyay$m, abs(lrbestyay$difft600),  xlab = 'Mean Distance (km)', ylab = 'Diff in Temp at 600m (°C)')
+plot(lrbestyay$m, abs(lrbestyay$chla_m),    xlab = 'Mean Distance (km)', ylab = 'Diff in Chl a (mg m-3)')
+lmbest <- lm(abs(lrbestyay$chla_m) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$chla_m))*0.95, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
+plot(lrbestyay$m, abs(lrbestyay$difft600),  xlab = 'Mean Distance (km)', ylab = 'Diff in Temp at 584m (°C)')
+lmbest <- lm(abs(lrbestyay$difft600) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$difft600))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
 plot(lrbestyay$m, abs(lrbestyay$diffssh),   xlab = 'Mean Distance (km)', ylab = 'Diff in SSH (m)')
+lmbest <- lm(abs(lrbestyay$diffssh) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffssh))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
 plot(lrbestyay$m, abs(lrbestyay$diffsshsd), xlab = 'Mean Distance (km)', ylab = 'Diff in SSHsd (m)')
+lmbest <- lm(abs(lrbestyay$diffsshsd) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsshsd))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
 plot(lrbestyay$m, abs(lrbestyay$diffeke),   xlab = 'Mean Distance (km)', ylab = 'Diff in EKE (m/s)')
+lmbest <- lm(abs(lrbestyay$diffeke) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffeke))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
+
 plot(lrbestyay$m, abs(lrbestyay$diffwp),    xlab = 'Mean Distance (km)', ylab = 'Diff in Wave Power (kW/m)')
+lmbest <- lm(abs(lrbestyay$diffwp) ~ lrbestyay$m)
+pval = round(summary(lmbest)$coefficients[2,4],5)
+r2 = summary(lmbest)$adj.r.squared
+# text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffwp))*0.9, paste0( 'R2 = ',round(r2,2)))
+abline(coefficients(lmbest))
 dev.off()
 ```
 
@@ -531,7 +594,7 @@ sw.bestA2 <- sw.bestA[!sw.bestA$ID %in% temp, ]  #remove single peak encounters 
 sw.bestB2 <- sw.bestB[!sw.bestB$ID %in% temp2, ]
 ```
 
-#Important Plots
+#PLOT LEFT vs RIGHT
 ```{r}
 #Remember, using scaled data - not for plots tho 9/27/20
 require(Cairo)
@@ -589,7 +652,7 @@ r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$chla_m)*0.9, min(sw.bestB2$chla_m), paste0( 'pval=',round(pval,2)))
 text(max(sw.bestA2$chla_m)*0.9, min(sw.bestB2$chla_m)*1.13, paste0( 'r = ',round(sqrt(r2),2)))
 
-plot(sw.bestA2$temp600C, sw.bestB2$temp600C, xlab = 'Temp at 600m (°C), Left', ylab ='Temp at 600m (°C), Right')
+plot(sw.bestA2$temp600C, sw.bestB2$temp600C, xlab = 'Temp at 584m (°C), Left', ylab ='Temp at 584m (°C), Right')
 lmbest <- lm(sw.bestA2$temp600C ~ sw.bestB2$temp600C)
 pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared

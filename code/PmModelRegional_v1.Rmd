@@ -26,9 +26,8 @@ include_graphics(here('figures/SwMap_ContourPlotsAll.png'))
 
 
 * **Regional Acoustics-Only NWHI Models:**  
-
-Significant variables included Temp at 584m, SSHsd, yearly quarter, and the spatial smoother.
-  * Encounter rate increased with higher temperatures at 584m. The temperatures generally increase towards the north, which corresponds to an increase in sperm whale encounters.
+Significant variables included Temp at 584m, SSHsd, yearly quarter, and the spatial smoother.  
+  * Encounter rate increased with higher temperatures at 584m. The temperatures generally increase towards the north, which corresponds to an increase in sperm whale encounters.  
   * Encounter rate gradually decreased with increasing SSHsd
   * Yearly quarter showed a peak in encounters between July and September, which corresponds to the majority of the survey effort taking place during that time.
   * The spatial smoother was incorporated to test whether dividing the data set into two regions accounted for the spatial structure within the data. It did not. The spatial smoother was still significant, but showed a less dramatic contour. SSHsd was the only other significant variable selected when incorporating the 2D smoother.
@@ -1087,7 +1086,7 @@ scheme = 1, xlab = 'Yearly Quarter', shade = T, shade.col = 'lightgoldenrod1', s
 mtext(paste0("Combined Model 2: MHI Region"), side=3, outer=TRUE , cex=1, font=1, padj=2)
 ```
 
-```{r echo = FALSE, fig.cap='Combined NWHI Regional Model 2: Contour plot of significant spatial smoother. Purple dots on contour represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.', fig.height=5, fig.width=6}
+```{r echo = FALSE, fig.cap='Combined MHI Regional Model 2: Contour plot of significant spatial smoother. Purple dots on contour represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.', fig.height=5, fig.width=6}
 # plot(modComboBest2DMH, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'lightgoldenrod2', all.terms = TRUE, xlab=expression("log.EKE (m"^2* "/s"^2*")"), seWithMean = TRUE )
 par(mfrow = c(1,1))
 plot(modComboBest2DMH, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1

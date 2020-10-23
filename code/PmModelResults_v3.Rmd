@@ -220,7 +220,9 @@ PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'Comp
 ```
 
 ```{r eval=FALSE, echo=FALSE}
-# COMBO: add column for log effort as offset ####
+##### COMBO: log transform, temporal variables, click code redo #####
+
+
 PmCombo$log.effort	= log(PmCombo$EffArea)
 PmCombo$log.chla <- log(PmCombo$chla.r)
 PmCombo$log.eke <- log(PmCombo$eke.r)
@@ -658,6 +660,16 @@ gam(EncRate ~ s(Longitude, Latitude, k=10) + s(SST, k=3) + s(log.Chla, k=3) + s(
 
 *gam(EncRate ~ s(Longitude, Latitude, k=10) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")*
 
+
+```{r}
+#look at some stuff in the training data
+trainComb$pa2 <- ifelse(trainComb$pa > 0, 1, 0)
+trainComb <- dplyr::select(trainComb, pa2, everything())
+trainComb[which(trainComb$effCells==1746), ]
+nrow(trainComb[which(trainComb$survey==1641 & trainComb$pa >0), ])
+
+```
+
 ```{r echo = FALSE}
 modComboBest2D <- gam(pa ~ s(Longitude, Latitude, k=10) + s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 # summary(modComboBest2D) #WAS modCombo2D3
@@ -671,6 +683,10 @@ modComboBest2D <- gam(pa ~ s(Longitude, Latitude, k=10) + s(SST, k=3) + s(log.Ch
 #Add quarter and year to full model first
 modCombo2D <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + year + qtr , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 summary(modCombo2D)
+
+modCombo2Db <- gam(pa2 ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + year + qtr , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Db)
+
 
 ### USE SMOOTHER FOR TIME VARIABLES TO BE CONSISTENT WITH ABOVE 
 modCombo2D2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")

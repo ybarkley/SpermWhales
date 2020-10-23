@@ -1,0 +1,158 @@
+---
+title: "Examine Variables for Foraging Groups"
+author: "Yvonne Barkley"
+date: "10/22/2020"
+output:
+ pdf_document:
+    latex_engine: xelatex
+    extra_dependencies: ["flafter"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60))
+```
+
+
+Looking at the contour plots of temperature at 584m, there is some spatial variation in the contours in the northern portion of the NWHI region near the foraging whale locations. 
+Different numbers of knots were tested in the models to see how much these contours changed with increasing 'wiggliness.'
+
+  * gam(Temp584m ~  s(Longitude, Latitude, k=10)
+  * gam(Temp584m ~  s(Longitude, Latitude, k=50) 
+  * gam(Temp584m ~  s(Longitude, Latitude, k=100)
+    
+Contour plots suggest that variability in temperature exists at this depth near the northern portion and could be affecting sperm whale prey in some way. Therefore, including the standard deviation of Temp at 584m and the EKE at 584m in the models could provide more information and help explain some of the processes occuring at depth that may be creating more suitable foraging habitat compared to other parts of the archipelago.
+
+
+```{r eval=TRUE, echo=FALSE, fig.cap='Contour plot of temperature at 584 m.' }
+require(mgcv)
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+PmFor <- readRDS(here::here( paste0('data/Pm_ForagingOnly.rda') ))
+trainHunt2 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',gridsize, 'km_', loctype2, '_HuntNEW.rda')  ))
+
+modTemp584k100 <- gam(Temp584m ~  s(Longitude, Latitude, k=100) , data = PmFor, select = TRUE, method = "REML") 
+modTemp584k10 <- gam(Temp584m ~  s(Longitude, Latitude, k=10) , data = PmFor, select = TRUE, method = "REML") 
+modTemp584k50 <- gam(Temp584m ~  s(Longitude, Latitude, k=50) , data = PmFor, select = TRUE, method = "REML") 
+
+
+par(mfrow = c(1,1))
+
+plot(modTemp584k10, select = 1, scheme = 2, lwd = 2, main = 'Temp at 584m ~ LAT:LON, k=10') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(PmFor, pa >0) #get points for whales to plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+
+
+plot(modTemp584k50, select = 1, scheme = 2, lwd = 2, main = 'Temp at 584m ~ LAT:LON, k=50') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(PmFor, pa >0) #get points for whales to plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+
+
+
+plot(modTemp584k100, select = 1, scheme = 2, lwd = 2, main = 'Temp at 584m ~ LAT:LON, k=100') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(PmFor, pa >0) #get points for whales to plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+
+```
+
+
+### Variables at 584 m
+
+The standard deviation of temperature at 584m and EKE at 584m were computed to test whether these variable at depth explained the presence of foraging whales.
+
+Each variable was not significant when included separately in the models nor did they contribute to explaining the data in the best models with Temp at 584m, log(Chla), and SSHsd.
+
+
+```{r echo=FALSE, fig.cap='Standard Deviation of Temp at 584m. The spatial plot is the result of fitting the a spatial smoother to the standard deviation of Temp584 to examine the spatial variability.'}
+PmFor2 <- subset(PmFor, pa >0)
+# par(mfrow= c(2,2))
+# hist(PmFor2$temp600_sd.r, main = '')
+# plot(PmFor$temp600_sd.r, PmFor$pa, ylab="Foraging Groups per cell", xlab="SD Temp at 584m")
+# hist(PmFor2$eke600m.r, main ='')
+# plot(PmFor$eke600m.r, PmFor$pa, ylab="Foraging Groups per cell", xlab="EKE at 584m")
+
+mlay <- rbind(c(2,3),c(1,1))
+# print(mlay)
+# layout.show(1)
+layout(mlay)
+par(mar=c(4,4,1,1))
+modTemp584mSD <- gam(pa ~  s(Longitude, Latitude, k=10) +
+                    s(temp600_sd.r, k=3) + offset(log.effort) , data = trainHunt2, family = nb,
+                    link = 'log', select = TRUE, method = "REML")
+summary(modTemp584mSD)
+modTemp584sd <- gam(temp600_sd.r ~ s(Longitude, Latitude, k=10) , data = PmFor, select = TRUE, method = "REML") 
+# summary(modTemp584sd)
+# gam.check(modTemp584sd)
+
+### TempSD 584m Plots####
+plot(modTemp584sd, select = 1, scheme = 2, lwd = 2, main = 'Temp at 584mSD ~ LAT:LON, k=10') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(PmFor, pa >0) #get points for whales to plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+hist(PmFor2$temp600_sd.r, main = '', xlab="SD Temp at 584m")
+plot(PmFor$temp600_sd.r, PmFor$pa, ylab="Foraging Groups per cell", xlab="SD Temp at 584m")
+```
+
+
+```{r echo=FALSE, fig.cap='EKE at 584 m. The spatial plot is the result of fitting the a spatial smoother to the standard deviation of EKE584 to examine the spatial variability.'}
+modEKE584m <- gam(pa ~  s(Longitude, Latitude, k=10) +
+                   s(eke600m.r, k=3) + offset(log.effort), data = trainHunt2, family = nb,
+                   link = 'log', select = TRUE, method = "REML")
+summary(modEKE584m)
+
+
+modEKE584 <- gam(eke600m.r ~  s(Longitude, Latitude, k=10) , data = trainHunt2, select = TRUE, method = "REML") 
+# summary(modEKE584)
+# gam.check(modEKE584)
+
+### EKE 584m Plots####
+mlay <- rbind(c(2,3),c(1,1))
+# print(mlay)
+# layout.show(1)
+layout(mlay)
+par(mar=c(4,4,1,1))
+plot(modEKE584, select = 1, scheme = 2, lwd = 2, main = 'EKE at 584m ~ LAT:LON, k=10') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(PmFor, pa >0) #get points for whales to plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+hist(PmFor2$eke600m.r, main ='',  xlab="EKE at 584m")
+plot(PmFor$eke600m.r, PmFor$pa, ylab="Foraging Groups per cell", xlab="EKE at 584m")
+
+```
+
+
+
+```{r echo=FALSE, eval=FALSE}
+# Models with just the new variables
+
+modTemp584mSD <- gam(pa ~  s(Longitude, Latitude, k=10) +
+                    s(temp600_sd.r, k=3) + offset(log.effort) , data = trainHunt2, family = nb,
+                    link = 'log', select = TRUE, method = "REML")
+summary(modTemp584mSD) 
+
+modEKE584m <- gam(pa ~  s(Longitude, Latitude, k=10) +
+                   s(eke600m.r, k=3) + offset(log.effort) , data = trainHunt2, family = nb,
+                   link = 'log', select = TRUE, method = "REML")
+summary(modEKE584m) 
+
+modTest <- gam(pa ~  s(Longitude, Latitude, k=10) + s(Temp584m, k=3) + 
+                       s(log.Chla, k=3) + s(temp600_sd.r, k=3) + s(eke600m.r, k=3) +
+                       s(SSHsd, k=3) + offset(log.effort) , data = trainHunt2, family = nb,
+                    link = 'log', select = TRUE, method = "REML")
+summary(modTest) 
+```
+

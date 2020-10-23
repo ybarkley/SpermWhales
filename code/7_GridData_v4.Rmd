@@ -134,7 +134,9 @@ pmDets$distance <- abs(pmDets$distance)*1000
 
 #winner! See v2 for other variations
 dsmAll_3pcthn <- Distance::ds(pmDetsAc, key = 'hn', truncation = '3%')
+
 plot(dsmAll_3pcthn)
+
 summary(dsmAll_3pcthn)
 gof_ds(dsmAll_3pcthn)
 

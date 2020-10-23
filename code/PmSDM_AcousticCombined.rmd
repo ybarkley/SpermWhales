@@ -1,0 +1,686 @@
+---
+title: "Summary of Sperm Whale Distribution Model Results"
+author: "Yvonne Barkley"
+date: "10/14/2020"
+output:
+ pdf_document:
+    latex_engine: xelatex
+    extra_dependencies: ["flafter"]
+    
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60))
+```
+
+#### This document summarizes the results of the sperm whale distribution models for FORAGING WHALE GROUPS.
+
+
+
+
+### UPDATE: Oct 17, 2020  
+
+
+Foraging Models are based on combined data using all sightings with concurrent acoutic encounters and groups that were only acoustically detected.
+
+
+
+
+  
+```{r echo=FALSE, fig.cap='Spatial plots of all dynamic environmental variables tested in the models.', fig.width=8, fig.height=10, fig.align='left'}
+## image ####
+require(here)
+require(knitr)
+include_graphics(here('figures/SwMap_AllDyn.png'))
+```
+
+
+
+### Research Hypothesis: Sperm whales are found in deep, productive offshore waters.  
+
+#### To address my hypothesis, I built generalized additive models (GAMs) to:  
+##### 1. Describe the relationships between biologically relevant environmental predictors and sperm whale encounter rate. Sperm whale encounter rate represents the number of groups of sperm whales occurring within a grid cell as the unit of analysis. The estimated number of individual sperm whales per grid cell was not used as the response variable because it cannot be accurately estimated using acoustics data at this time.
+
+
+##### 2. Examine whether these relationships differed depending on the type of data included in the models by configuring the following model types:  
+  * **Acoustics Only models**    
+     * These models included sperm whale encounters that were ONLY detected by acoustics (both localized and unlocalized)  
+     * Included only data for times when the acoustics team was 'on effort'
+     * n = 144 sperm whale encounters
+  * **Combined Data models**    
+     * Models included both sperm whale sightings and acoustic encounters
+     * Included only data for times when both visuals and acoustics teams were 'on effort'
+     * n = 192 sperm whale encounters
+  
+
+##### 3. Evaluate differences between 2 types of behavioral sperm whale groups using characteristics of their echolocation clicks. Groups were defined as:  
+ * **Foraging Groups**    
+     * Included groups with regular clicks or creaks, which exhibit an inter-click interval between 0.5 - 1 s and indicates foraging behavior 
+     * n = 105 sperm whale encounters
+ * **Social Groups**    
+     * Included groups with codas, which are indicative of communication between individuals. Codas consist of varying inter-click intervals
+     * n = 46 sperm whale encounters
+
+
+The different GAMs will provide information about the overall spatial distribution patterns of sperm whales, whether different methods for detecting sperm whales affect the modeled relationships between sperm whale encounter rates and the environment, and use information from the acoustic data to test whether distribution patterns can be further delineated by behavior. 
+
+$~$
+
+### Environmental Variables  
+
+All models incorporated biologically relevant environmental predictors that represented bathymetric features or oceanographic processes that act as proxies for mechanisms driving sperm whale prey distribution. The correlation between environmental variables was tested prior to model fitting. All variables included in the table below resulted in correlation coefficients < |0.6| (Figure 1).
+Chlorophyll, EKE and wave power were log-transformed to reduce the skew and minimize the leverage of outlying data points during model fitting.
+
+```{r echo=FALSE, fig.cap='Candidate environmental variables included as predictors for species distribution models.', fig.width=3, fig.height=4, fig.align='center'}
+## image ####
+require(here)
+require(knitr)
+include_graphics(here('figures/EnvDataTable3.png'))
+```
+
+
+$~$
+
+
+### Model Construction
+A 25-km spatial resolution was used to compute the unit of analysis for sperm whale encounter rate. Preliminary models also tested a 10-km spatial resolution, but given the homogeneous nature of the data, increasing the spatial resolution did not result in any significant changes to the strength of correlations between encounter rate and environmental variables. 
+
+Model data sets were divided into train and test data sets using a 70/30 split. All models were fit using thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models. Models were also tested with a 2D spatial smoother ( s(Lon, Lat, k=10) ) to account for spatial autocorrelation within the data. The number of knots was increased to 10 based on model diagnostics to account for the complexity of the spatial smoother and minimize the risk of overfitting the data. The log of the effort was included as an offset to account for the variation in search effort per grid cell. 
+
+GAMs were fitted using a negative binomial with a log-link function since this distribution is suitable for data sets consisting of relatively sparse count data with large numbers of zeros. This distribution fit the data better than a Tweedie distribution, which is also commonly used to fit cetacean occurrence data. Negative binomial models resulted in lower AIC, with higher adj. $R^2$ values and explained deviance. Smoothing parameters were optimized using restricted maximum likelihood (REML). Model selection was performed using automatic term selection, which approximated p-values for each predictor. Non-significant variables (α = 0.05) were iteratively excluded. 
+
+* Note: Initial models included all candidate predictors. The best-fit models included only the significant variables resulting in maximum adjusted $R^2$ values and explained deviance.
+
+Here, I present only the best-fit models with and without spatial smoothers to compare model performance and significant predictor variables to address my hypothesis and research objectives.
+
+```{r, echo=F, eval=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+library(lubridate)
+```
+
+```{r echo=FALSE}
+#Values for COMBINED MODELS
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+#data has logged vars and temporal variables
+PmEdit <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+
+#Values for ACOUSTICS ONLY MODELS- using the same PmEdit name for now to make it easier
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'AcOnly'
+loctype2 = 'Ac'
+#data has logged vars and temporal variables
+PmEdit <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+```
+
+```{r eval=FALSE, echo=FALSE}
+##### COMBO: log transform, temporal variables, click code redo #####
+
+
+PmEdit$log.effort	= log(PmEdit$EffArea)
+PmEdit$log.chla <- log(PmEdit$chla.r)
+PmEdit$log.eke <- log(PmEdit$eke.r)
+PmEdit$log.wp <- log(PmEdit$wavepower.r)
+
+#From Jeff, Oct 14, 2020
+#add year and quarterly time variables
+#year
+PmEdit$year <- 2010
+PmEdit$year[PmEdit$survey==1303] <- 2013 
+PmEdit$year[PmEdit$survey==1604] <- 2016
+PmEdit$year[PmEdit$survey==1705] <- 2017
+PmEdit$year[PmEdit$survey==1706] <- 2017
+PmEdit2 <- dplyr::select(PmEdit, last_col(), everything())
+
+#quarter: test on PmEdit2, then add to PmEdit
+dateSplit = data.frame(1, time=as.character(as.Date(PmEdit$UTC)))  #some data finagling
+dateSplit2 = separate(dateSplit, "time",  c("year", "month", "day")) #splits date into year, month, day
+PmEdit2$month = as.numeric(dateSplit2$month) #add to PmEdit2 to test
+PmEdit2$qtr = 1
+PmEdit2$qtr[PmEdit2$month >= 4 & PmEdit2$month <=6] <- 2 
+PmEdit2$qtr[PmEdit2$month >= 7 & PmEdit2$month <=9] <- 3
+PmEdit2$qtr[PmEdit2$month >= 10 & PmEdit2$month <=12] <- 4
+PmEdit2 <- dplyr::select(PmEdit2, last_col(), everything())
+PmEdit$qtr <- PmEdit2$qtr
+
+# saveRDS(PmEdit, here::here(  paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+```
+
+
+
+```{r echo=FALSE, eval=FALSE}
+### MUST DO!!!!! CLICK CODE REDO ####
+# need to validate the click code and make sure the cells with > 1 group have all clicks accounted for.
+# did this somewhat manually by looking at each 'manyGrps' subset separately to combine click codes into one row to represent the cell. Didn't care about the individual data for each detection itself at this point. but that info is still available.
+
+ # 1) find which rows have > 1 group in a cell 
+manyGrps1641 =  PmEdit[ which(PmEdit$pa  > 1 & PmEdit$survey == 1641), ]
+manyGrps1303 =  PmEdit[ which(PmEdit$pa  > 1 & PmEdit$survey == 1303), ]
+manyGrps1604 =  PmEdit[ which(PmEdit$pa  > 1 & PmEdit$survey == 1604), ]
+manyGrps1705 =  PmEdit[ which(PmEdit$pa  > 1 & PmEdit$survey == 1705), ]
+manyGrps1706 =  PmEdit[ which(PmEdit$pa  > 1 & PmEdit$survey == 1706), ]
+
+ # 2) add in the missing click type to the click code VERY CAREFULLY: no need for 1303 in this step for either
+ #    Data for 1641 and 1303 differ slightly between data sets, double-check rows and click codes saved!
+manyGrps1641[1,54] <- 'cdcks'
+manyGrps1641[3,54] <- 'ckcd'
+
+manyGrps1604[1,54] <- 'cdr'
+
+manyGrps1705[2,54] <- 'cdrs'
+
+manyGrps1706[1,54] <- 'rs'
+manyGrps1706[3,54] <- 'ckrs'
+
+
+ # 3) keep the rows with all encompassing click code
+#for COMBO
+manyGrps1641ed <- manyGrps1641[c(1,3,5,7), ]
+manyGrps1303ed <- manyGrps1303[c(1,4,5,8), ]
+
+#for Acoustics Only
+manyGrps1641ed <- manyGrps1641[c(1,3,5,8), ]
+manyGrps1303ed <- manyGrps1303[c(1,4,5,7), ]
+
+#same for both
+manyGrps1604ed <- manyGrps1604[1, ]
+manyGrps1705ed <- manyGrps1705[2, ]
+manyGrps1706ed <- manyGrps1706[c(1,3,5,6), ]
+
+
+# gotta remove these rows with >1 group from PmEdit...so keep all rows for absences and single groups
+PmEditsubby <- filter( PmEdit, pa==0 | pa == 1 ) #sweet, works
+
+#save for Combined Models
+PmCombo <- rbind(PmEditsubby, manyGrps1641ed, manyGrps1303ed, manyGrps1604ed ,manyGrps1705ed, manyGrps1706ed)
+# saveRDS(PmCombo, here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+
+# save for ZACK
+# saveRDS(PmCombo[ , c(1,2,11,12,30:32,34,38,39)], here::here(  paste0('data/For Zack-data/', 'CompletePm_', gridsize, 'km_', loctype2, '_forZack_v2.rda') ))
+
+#save for Acoustics Only Models
+PmAcOnly <- rbind(PmEditsubby, manyGrps1641ed, manyGrps1303ed, manyGrps1604ed ,manyGrps1705ed, manyGrps1706ed)
+# saveRDS(PmAcOnly, here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+```
+
+
+
+
+
+```{r eval=FALSE, echo=FALSE}
+## COMBO: REDO TRAIN TEST for COMBO MODELS ####
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+trainComb = NULL
+testComb = NULL
+seed = 2
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(PmCombo, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainComb = rbind( trainComb, trainAll )
+testComb  = rbind( testComb,  testAll )
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Comb3.rda')  ))
+saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Comb3.rda')  ))
+
+# nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
+# nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
+```
+
+```{r echo=FALSE}
+## COMBO: TRAINING AND TEST DATA #### 
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+trainComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_Comb3.rda')  ))
+testComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_Comb3.rda')  ))
+PmCombo = readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+
+```
+
+
+```{r eval=FALSE, echo=FALSE}
+# AcONLY: REDO TRAIN AND TEST SETS IF NEEDED ####
+
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+trainAcOnly = NULL
+testAcOnly = NULL
+seed = 1
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(PmAcOnly, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 & sid == 999)# & loc == 1) #for S999 versions
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainAcOnly = rbind( trainAcOnly, trainAll )
+testAcOnly  = rbind( testAcOnly,  testAll)
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_S999D.rda')  ))
+saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_S999D.rda')  ))
+
+```
+
+```{r echo=FALSE}
+## TRAINING AND TEST DATA - ACOUSTICS ONLY ####
+# seed 1, includes log variables
+# Only includes S999, no sightings
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'AcOnly'
+loctype2 = 'Ac'
+trainS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_S999D.rda')  ))
+testS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_S999D.rda')  ))
+PmAcOnly <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+```
+
+
+### **COMBINED MODEL**
+
+#### These models include sperm whale encounters detected when both visual and acoustics teams were on effort. The encounter data include all acoustic encounters from the previous 'Acoustics-Only' models as well as all sighted sperm whales concurrently detected by acoustics.  
+
+```{r echo=FALSE, fig.cap='Combined Models: Environmental variables included as predictors. The data show similar distributions to the data used in the Acoustics Only models, which is consistent with the overall environmental homogeneity of the study area.', fig.width=6, fig.height=4}
+#Acoustics Only histograms of environmental data
+
+par(mfrow = c(3,4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+
+dataSet = PmCombo[,c(1,30,57,32,59,34, 37:39,58,41)]   #raw values and log values
+colnames(dataSet) <- c('pa', 'sst', 'log chla', 'temp584m', 'log wavepower', 'depth', 'distland', 'ssh', 'sshsd', 'log eke', 'distseamt')
+
+loopVec <-  2:11  #columns from PmAcOnly to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[, c(1,j)]
+
+      hist(datPlot[,2], main = colnames(datPlot)[2], ylab='frequency', xlab = '')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Environmental Predictors for Combined Data Models, ", gridsize, 'km grid'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+```
+
+
+```{r echo=FALSE}
+colnames(trainComb)[30] <- 'SST'
+colnames(trainComb)[57] <- 'log.Chla'
+colnames(trainComb)[32] <- 'Temp584m'
+colnames(trainComb)[34] <- 'Depth'
+colnames(trainComb)[38] <- 'SSH'
+colnames(trainComb)[39] <- 'SSHsd'
+
+
+colnames(testComb)[30] <- 'SST'
+colnames(testComb)[57] <- 'log.Chla'
+colnames(testComb)[32] <- 'Temp584m'
+colnames(testComb)[34] <- 'Depth'
+colnames(testComb)[38] <- 'SSH'
+colnames(testComb)[39] <- 'SSHsd'
+
+# modComboBest <- gam(pa ~ s(Depth, k=3) + s(Temp584m, k=3) +s(SSH, k=3) + s(SSHsd, k=3) + offset(log.effort) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modComboBest) 
+
+ # gam(pa ~ s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3)  + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+# 
+```
+
+```{r echo=FALSE, eval=FALSE, fig.cap= 'Combined Model 1: Partial effects plots without a spatial smoother.', fig.width=6, fig.height=5}
+par(mar=c(4,4,1,2),mfrow = c(3,2))
+plot(modComboBest, select=1, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,3),
+  scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'Depth (m)' )
+plot(modComboBest, select=2, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,3),
+  scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'Temp at 584 m (ºC)' )
+plot(modComboBest, select=3, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,3),
+  scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'SSH (m)' )
+plot(modComboBest, select=4, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,3),
+  scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'SSHsd (m)' )
+plot(modComboBest, select=5, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-3,3), 
+  scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'Quarter of Year' ) 
+mtext(paste0("Combined Model, ", gridsize, 'km grid'), side=3, line=1, outer=TRUE, cex=1, font=1)
+```
+
+```{r echo=FALSE, eval=FALSE}
+## COMBO 1: TIME VARIABLES ####
+#Checking if temporal variation exists by including year and quarter into the models
+#Add quarter and year to full model first
+# FYI!!! including year as smooth makes a difference
+modCombo <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo) 
+
+modCombo2 <- gam(pa ~ s(Depth, k=3) + s(Temp584m, k=3) +s(SSH, k=3) + s(SSHsd, k=3) + offset(log.effort) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2)
+AIC(modCombo2)
+gam.check(modCombo2)
+
+
+#CONCLUSION: Quarter temporal variables IS significant. The number of sperm whales does differ by quarter.
+```
+
+
+```{r echo=FALSE, eval=FALSE, fig.cap='Model Testing'}
+#Checking if temporal variation exists by including year and quarter into the models
+#Add quarter and year to full model first
+modCombo2D <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + year + qtr , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2D)
+
+modCombo2Db <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Db)
+modCombo2Dti <- gam(pa ~ ti(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Dti)
+
+#best
+modCombo2Dte <- gam(pa ~ te(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) ,data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2Dte)
+
+AIC(modCombo2Db, modCombo2Dti, modCombo2Dte)
+
+#From modCombo2Dte
+modCombo2DteB <- gam(pa ~ te(Longitude, Latitude, bs = "tp") + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) +  s(qtr, k=3), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo2DteB)
+
+modTs <- gam(pa ~ te(Longitude, Latitude, bs = "ts") + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) +  s(qtr, k=3), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modTs)
+
+modTp <- gam(pa ~ te(Longitude, Latitude, bs = "tp") + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) +  s(qtr, k=3), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modTp)
+
+modS <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) + s(qtr, k=3), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+
+AIC(modCombo2Db, modCombo2Dti, modCombo2Dte, modCombo2DteB, modTs, modTp, modS)
+
+
+## Try Tweedie again ####
+
+modComboTW <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3), data = trainComb, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modComboTW)
+
+modComboTW2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) + s(qtr, k=3), data = trainComb, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modComboTW2)
+
+par(mar=c(4,4,1,3),mfrow = c(2,2))
+gam.check(modComboTW2)
+
+```
+
+```{r echo = FALSE}
+require(mgcv)
+modComboBest <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+ summary(modComboBest) #NOW modComboTW2, WAS modCombo2D3
+  # gam.check(modComboBest)
+
+```
+
+
+```{r echo=FALSE, fig.cap = "Combined Model 2: Partial effects plots with a spatial smoother.",, fig.width=6, fig.height=4}
+par(mar=c(4,4,1,2),mfrow = c(2,2))
+# plot(modComboBest, select=1, residuals = FALSE, pch = 20, cex = 0.001,
+# shade = T, scheme = 2, theta= 30, phi=20, shade.col = 'lightcyan', all.terms = TRUE)
+plot(modComboBest, select=2, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-2,2),
+     scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'Depth (m)' )
+
+plot(modComboBest, select=3, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
+     scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='Temp at 584 m (°C)', seWithMean = TRUE )
+
+plot(modComboBest, select=4, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
+     scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='SSHsd (m)', seWithMean = TRUE )
+
+# plot(modComboBest, select=5, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
+#      scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='Yearly Quarter', seWithMean = TRUE )
+
+mtext(paste0("Combined Model (includes sightings and ac. encounters)"), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+
+```
+
+
+```{r echo=FALSE, fig.cap = "Combined Model 2: Contour plot of spatial smoother. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model." , fig.width=6, fig.height=4} 
+par(mfrow = c(1,1))
+plot(modComboBest, select = 1, scheme = 2, lwd = 2)#, main='Best Set 2 Model w/Spatial Smoother-Reduced') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainComb, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
+```
+
+
+
+### Initial Conclusions for Combined Model
+
+
+Both Combined models included Depth, Temp at 584 m, SSHsd, and yearly quarter as significant variables, each with similar effects on sperm whale encounter rate. 
+
+
+Partial effects plots from Combined Model 1 showed sperm whale encounter rate to have a negative linear relationship with SSH and yearly quarter. The Combined Model 1 resulted in effects of Depth, Temp at 584 m, and SSHsd showed similar relationships where higher encounter rates were predicted at the minimum and maximum values of each variable.
+
+Combined Model 2 (*with 2D spatial smoother) yielded the same significant variables as Combined Model 1 with the exception of SSH. The addition of the sighted sperm whale encounters may have introduced more variation into the data, which is best explained by including both of these variables in the model. Higher encounter rates are predicted at the lowest and highest temperatures for Temp at 584 m, which coincides to predictions from the spatial smoother. This variable relates the effects of temperatures at an average depth of sperm whale prey (primarily squids) to sperm whale encounter rate, which may suggest that these areas are more productive.
+
+
+
+
+
+
+
+
+### **ACOUSTICS-ONLY MODELS**  
+
+```{r echo=FALSE, fig.cap='Environmental variables included as predictors in the Acoustics-Only models.', fig.width=6, fig.height=4}
+#Acoustics Only histograms of environmental data
+par(mfrow = c(3,4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+
+dataSet = PmAcOnly[,c(1,30,57,32,59,34, 37:39,58,41)]   #raw values and log values
+colnames(dataSet) <- c('pa', 'sst', 'log chla', 'temp584m', 'log wavepower', 'depth', 'distland', 'ssh', 'sshsd', 'log eke', 'distseamt')
+
+loopVec <-  2:11  #columns from PmAcOnly to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[, c(1,j)]
+
+      hist(datPlot[,2], main = colnames(datPlot)[2], ylab='frequency', xlab = '')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Environmental Predictors for Acoustics Only Models, ", gridsize, 'km grid'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+```
+
+
+```{r echo=FALSE, eval=FALSE, fig.cap='CHECKING TIME VARIABLES'}
+
+
+#Checking if temporal variation exists by including year and quarter into the models
+#Add quarter and year to full model first
+modAcOnly <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(ssh.r, k=3) + s(sshsd.r, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainS999, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modAcOnly)
+
+modAcOnly2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(sst.r, k=3) + s(ssh.r, k=3) + offset(log.effort), data = trainS999, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modAcOnly2)
+# best
+modAcOnly3 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(ssh.r, k=3) + offset(log.effort), data = trainS999, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modAcOnly3)
+par(mfrow = c(2,2), mar=c(4,4,2,1), oma=c(0,0,3,1))
+plot(modAcOnly3)
+
+#tweedie again
+modAcOnlyTW <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(ssh.r, k=3) + s(sshsd.r, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modAcOnly)
+# new best
+modAcOnlyTW2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(SSH, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modAcOnlyTW2)
+
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+gam.check(modAcOnly3)
+gam.check(modAcOnlyTW2) 
+# #try binomial for kicks - NAAAHHH #####
+# trainS999$pa2 = ifelse(trainS999$pa == 1, 1, 0)
+# modAcOnly4 <- gam(pa2 ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(ssh.r, k=3) + s(sshsd.r, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3), data = trainS999, family = binomial(link = 'logit'), select = TRUE, method = "REML")
+# summary(modAcOnly4)
+# 
+# modAcOnly5 <- gam(pa2 ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distseamt.r, k=3) + s(ssh.r, k=3) + + offset(log.effort), data = trainS999, family = binomial(link = 'logit'), select = TRUE, method = "REML")
+# summary(modAcOnly5)
+# par(mfrow = c(2,2), mar=c(4,4,2,1), oma=c(0,0,3,1))
+# plot(modAcOnly5)
+```
+
+
+```{r echo=FALSE}
+require(mgcv)
+# Acoustics Best #### 
+#modAcOnly3
+colnames(trainS999)[38] <- 'SSH'
+colnames(trainS999)[34] <- 'Depth'
+colnames(testS999)[38] <- 'SSH'
+colnames(testS999)[34] <- 'Depth'
+modAcOnlyBest <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(SSH, k=3) + offset(log.effort), data = trainS999, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modAcOnlyBest)
+```
+
+```{r echo=FALSE, fig.height=4, fig.cap = 'Acoustics-Only Model 2: The partial effects plots when a spatial smoother is included.'}
+par(mar=c(4,4,1,2),mfrow = c(2,1))
+
+plot(modAcOnlyBest, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'honeydew2', all.terms = TRUE, xlab='Depth (m)', seWithMean = TRUE )
+
+plot(modAcOnlyBest, select=3, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'honeydew2', all.terms = TRUE, xlab='SSH (m)', seWithMean = TRUE )
+
+mtext(paste0("Acoustics-Only Model (includes only ac. encounters)"), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+```
+
+
+```{r echo=FALSE, fig.cap = "Acoustics-Only Model 2: Contour plot of spatial smoother. Purple dots represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}  
+par(mfrow = c(1,1))
+plot(modAcOnlyBest, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainS999, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
+```
+
+
+
+
+```{r echo=FALSE}
+### COMBINED: PREDICTIONS #######
+require(magrittr)
+require(dplyr)
+require(mgcv)
+#### For nb, no spatial smoother ##
+nbTrainFinal <- trainComb %>% mutate(resid = resid(modComboBest), predict = predict(modComboBest))
+predTrain <- predict.gam(modComboBest, type = 'response', se.fit=TRUE)  #calculate MSE for these 
+#to compare with test set. If they're super different, speaks to the genrality of the model
+nbTrainFinal$fit <- predTrain$fit
+nbTrainFinal$se.fit <- predTrain$se.fit
+#using scale of 0,1,2 makes this hard to interpret
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+nbMSEtrain <- mean((nbTrainFinal$pa - nbTrainFinal$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+
+nbPred <- predict.gam(modComboBest, newdata = testComb, type = 'response', se.fit = TRUE)
+nbTestFinal <- data.frame(testComb, fit = nbPred$fit, se.fit=nbPred$se.fit)
+nbMSEtest <- mean((nbTestFinal$pa - nbTestFinal$fit)^2) #MSE
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+#### For Acoustics Only  ####
+# pulling the prediction and residual data from the model
+modAcOnlyResid <- trainS999 %>% mutate(resid = resid(modAcOnlyBest), predict = predict(modAcOnlyBest))
+modAcOnlyPred <- predict.gam(modAcOnlyBest, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+modAcOnlyResid$fit <- modAcOnlyPred
+
+#using scale of 0,1,2 makes this hard to interpret
+modAcOnlyMSEtrn <- mean((modAcOnlyResid$pa - modAcOnlyResid$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+modAcOnlyPredNew <- predict.gam(modAcOnlyBest, newdata = testS999, type = 'response', se.fit = TRUE)
+modAcOnlyPredNew2 <- data.frame(testS999, fit = modAcOnlyPredNew$fit, se.fit=modAcOnlyPredNew$se.fit)
+modAcOnlyMSEtest <- mean((modAcOnlyPredNew2$pa - modAcOnlyPredNew2$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+# AIC
+nbAIC <- AIC(modComboBest)
+modAcOnlyAIC <- AIC(modAcOnlyBest)
+
+# Explained Deviance
+nbExpDev = round(((modComboBest$null.deviance-modComboBest$deviance)/modComboBest$null.deviance)*100, 2)
+modAcOnlyExp = round(((modAcOnlyBest$null.deviance-modAcOnlyBest$deviance)/modAcOnlyBest$null.deviance)*100, 2)
+
+
+# Table ####
+table = matrix(NA, nrow = 2, ncol = 6)
+colnames(table) = c("Models", "ExpDev", "AIC", "MSEtrain", "MSEtest", "Predictor Variables")
+
+# enter info by row
+table[1,] <- c("Combined Model", paste0(nbExpDev, '%'), round(nbAIC, 2), round(nbMSEtrain,3), round(nbMSEtest,3), paste0('Depth, Temp at 584m, SSHsd, Yr. Qtr, LON:LAT'))
+table[2,] <- c("Acoustics Only Model", paste0(modAcOnlyExp, '%'), round(modAcOnlyAIC,2), round(modAcOnlyMSEtrn,3), round(modAcOnlyMSEtest,3), paste0('Depth, SSH, LON:LAT'))
+require(knitr)
+kable(table, caption = "Performance Metrics for Combined Models")
+
+```
+The table presents performance metrics for the Combined and Acoustic-Only models. The MSE for the train and test data indicated similar predictive performance, and they were also similar across models. All significant variables fit with simple smoothers from Model 2 were also important in Model 1.
