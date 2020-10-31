@@ -1,7 +1,7 @@
 ---
 title: "Summary of Sperm Whale Distribution Model Results"
 author: "Yvonne Barkley"
-date: "10/14/2020"
+date: "10/17/2020"
 output:
  pdf_document:
     latex_engine: xelatex
@@ -12,7 +12,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60))
 ```
 
-#### This document summarizes the results of the sperm whale distribution models for FORAGING WHALE GROUPS.
+#### This document summarizes the results of the sperm whale distribution models for COMBINED and ACOUSTIC-BASED data sets.
 
 
 
@@ -45,20 +45,13 @@ include_graphics(here('figures/SwMap_AllDyn.png'))
   * **Acoustics Only models**    
      * These models included sperm whale encounters that were ONLY detected by acoustics (both localized and unlocalized)  
      * Included only data for times when the acoustics team was 'on effort'
-     * n = 144 sperm whale encounters
+     * n = 124 sperm whale encounters
   * **Combined Data models**    
      * Models included both sperm whale sightings and acoustic encounters
      * Included only data for times when both visuals and acoustics teams were 'on effort'
-     * n = 192 sperm whale encounters
+     * n = 180 sperm whale encounters
   
 
-##### 3. Evaluate differences between 2 types of behavioral sperm whale groups using characteristics of their echolocation clicks. Groups were defined as:  
- * **Foraging Groups**    
-     * Included groups with regular clicks or creaks, which exhibit an inter-click interval between 0.5 - 1 s and indicates foraging behavior 
-     * n = 105 sperm whale encounters
- * **Social Groups**    
-     * Included groups with codas, which are indicative of communication between individuals. Codas consist of varying inter-click intervals
-     * n = 46 sperm whale encounters
 
 
 The different GAMs will provide information about the overall spatial distribution patterns of sperm whales, whether different methods for detecting sperm whales affect the modeled relationships between sperm whale encounter rates and the environment, and use information from the acoustic data to test whether distribution patterns can be further delineated by behavior. 
@@ -110,7 +103,7 @@ loctype = 'Combined'
 loctype2 = 'Comb'
 #data has logged vars and temporal variables
 PmEdit <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
-
+# PmEdit <- CompleteScaled #This is from DataCleanupAllSurveys to look at A999's in model
 
 #Values for ACOUSTICS ONLY MODELS- using the same PmEdit name for now to make it easier
 survey = 'AllSurveys'
@@ -198,12 +191,13 @@ manyGrps1706ed <- manyGrps1706[c(1,3,5,6), ]
 
 
 # gotta remove these rows with >1 group from PmEdit...so keep all rows for absences and single groups
-PmEditsubby <- filter( PmEdit, pa==0 | pa == 1 ) #sweet, works
+PmEditsubby <- subset( PmEdit, pa==0 | pa == 1 ) #sweet, works
 
 #save for Combined Models
 PmCombo <- rbind(PmEditsubby, manyGrps1641ed, manyGrps1303ed, manyGrps1604ed ,manyGrps1705ed, manyGrps1706ed)
 # saveRDS(PmCombo, here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
-
+PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+nrow(subset(PmCombo, sid<999))
 # save for ZACK
 # saveRDS(PmCombo[ , c(1,2,11,12,30:32,34,38,39)], here::here(  paste0('data/For Zack-data/', 'CompletePm_', gridsize, 'km_', loctype2, '_forZack_v2.rda') ))
 
@@ -256,8 +250,8 @@ testComb  = rbind( testComb,  testAll )
 # trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
 # testAcOnly$log.effort <- log(testAcOnly$EffArea)
 }
-saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Comb3.rda')  ))
-saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Comb3.rda')  ))
+saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
+saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
 
 # nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
 # nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
@@ -271,10 +265,9 @@ loctype = 'Combined'
 loctype2 = 'Comb'
 trainComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_Comb3.rda')  ))
 testComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_Comb3.rda')  ))
-PmCombo = readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+# PmCombo = readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
 
 ```
-
 
 ```{r eval=FALSE, echo=FALSE}
 # AcONLY: REDO TRAIN AND TEST SETS IF NEEDED ####
@@ -333,6 +326,7 @@ loctype2 = 'Ac'
 trainS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_S999D.rda')  ))
 testS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_S999D.rda')  ))
 PmAcOnly <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+
 ```
 
 
@@ -405,7 +399,14 @@ mtext(paste0("Combined Model, ", gridsize, 'km grid'), side=3, line=1, outer=TRU
 #Checking if temporal variation exists by including year and quarter into the models
 #Add quarter and year to full model first
 # FYI!!! including year as smooth makes a difference
-modCombo <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+# trainTryP <- subset(trainComb, pa > 0 & Depth < -500)
+# trainTryA <- subset(trainComb, pa == 0 )
+# trainTry <- rbind( trainTryP, trainTryA)
+# 
+# modCombo <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) , data = trainTry, family = nb, link = 'log', select = TRUE, method = "REML")
+# summary(modCombo) 
+
+modCombo <- gam(pa ~ s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
 summary(modCombo) 
 
 modCombo2 <- gam(pa ~ s(Depth, k=3) + s(Temp584m, k=3) +s(SSH, k=3) + s(SSHsd, k=3) + offset(log.effort) + s(qtr, k=3) , data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
@@ -413,8 +414,12 @@ summary(modCombo2)
 AIC(modCombo2)
 gam.check(modCombo2)
 
+trainTryP <- subset(PmCombo, depth.r < -500)
+modCombo <- gam(pa ~  s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(ssh.r, k=3) + s(sshsd.r, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) , data = trainTryP, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modCombo)
+modCombo2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(sshsd.r, k=3) + offset(log.effort) , data = trainTryP, family = nb, link = 'log', select = TRUE, method = "REML")
 
-#CONCLUSION: Quarter temporal variables IS significant. The number of sperm whales does differ by quarter.
+#CONCLUSION: Quarter temporal variables IS significant. The number of sperm whales does differ by quarter, but it's mainly linked to the difference in SST that is warmer in May
 ```
 
 
@@ -473,17 +478,27 @@ modComboBest <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(Temp58
 
 
 ```{r echo=FALSE, fig.cap = "Combined Model 2: Partial effects plots with a spatial smoother.",, fig.width=6, fig.height=4}
-par(mar=c(4,4,1,2),mfrow = c(2,2))
+## Combined Plots ####
+# 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\figures\\
+# png(filename = ('CombinedSmoothPlots.png'),
+#     width = 500, height = 500, units = "px", pointsize = 12,
+#     bg = "white", type = "cairo-png")
+par(mar=c(4,5,1,1),mfrow = c(1,3))
 # plot(modComboBest, select=1, residuals = FALSE, pch = 20, cex = 0.001,
 # shade = T, scheme = 2, theta= 30, phi=20, shade.col = 'lightcyan', all.terms = TRUE)
 plot(modComboBest, select=2, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-2,2),
-     scheme = 1, shade = T, shade.col = 'lightcyan', all.terms = TRUE, seWithMean = TRUE, xlab = 'Depth (m)' )
+     scheme = 1, shade = T, shade.col = 'gray85', all.terms = TRUE, seWithMean = TRUE, xlab = 'Depth (m)', cex.axis = 1.2, cex.lab = 1.5)
+
 
 plot(modComboBest, select=3, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
-     scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='Temp at 584 m (°C)', seWithMean = TRUE )
+     scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Temp at 584 m (°C)', seWithMean = TRUE, cex.axis = 1.2,  cex.lab = 1.5)
+# axis(1,cex.axis=1.2)
+# axis(2,cex.axis=1.2)
 
 plot(modComboBest, select=4, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
-     scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='SSHsd (m)', seWithMean = TRUE )
+     scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='SSHsd (m)', seWithMean = TRUE, cex.axis = 1.2, cex.lab = 1.5)
+# axis(1,cex.axis=1.2)
+# axis(2,cex.axis=1.2)
 
 # plot(modComboBest, select=5, residuals = FALSE, pch = 20, shade = T, ylim = c(-2,2),
 #      scheme = 2, shade.col = 'lightcyan', all.terms = TRUE, xlab='Yearly Quarter', seWithMean = TRUE )
@@ -495,14 +510,14 @@ mtext(paste0("Combined Model (includes sightings and ac. encounters)"), side=3, 
 
 
 ```{r echo=FALSE, fig.cap = "Combined Model 2: Contour plot of spatial smoother. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model." , fig.width=6, fig.height=4} 
-par(mfrow = c(1,1))
-plot(modComboBest, select = 1, scheme = 2, lwd = 2)#, main='Best Set 2 Model w/Spatial Smoother-Reduced') #select the first smoother, select = 1
+par(mfrow = c(1,1),mar=c(5,5,1,1))
+plot(modComboBest, select = 1, scheme = 2, lwd = 2, cex.axis = 1.2,  cex.lab = 1.5)#, main='Best Set 2 Model w/Spatial Smoother-Reduced') #select the first smoother, select = 1
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- subset(trainComb, pa >0) #get points for whales to plot
 
 #for 2D smoother plot
-points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(whales$Longitude, whales$Latitude, pch = 16, col='mediumslateblue', lwd=1.25, cex=1)
 points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
 ```
 
@@ -549,6 +564,16 @@ mtext(paste0("Environmental Predictors for Acoustics Only Models, ", gridsize, '
 
 
 ```{r echo=FALSE, eval=FALSE, fig.cap='CHECKING TIME VARIABLES'}
+# removing outlier for depth
+trainTryP <- subset(trainS999, pa > 0 & Depth < -500)
+trainTryA <- subset(trainS999, pa == 0 )
+trainTry <- rbind( trainTryP, trainTryA)
+modAcOnlyTry <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(sst.r, k=3) + s(log.chla, k=3) + s(temp600m.r, k=3) + s(SSH, k=3) + s(sshsd.r, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) + s(year, k=3) + s(qtr, k=3) , data = trainTry, family = nb, link = 'log', select = TRUE, method = "REML")
+
+modAcOnlyTry2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(sst.r, k=3) + s(SSH, k=3) + offset(log.effort) , data = trainTry, family = nb, link = 'log', select = TRUE, method = "REML")
+
+trainTryP <- subset(PmAcOnly, depth.r < -500)
+modAcOnlyTry2 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(sst.r, k=3) + s(sshsd.r, k=3)+s(temp600m.r, k=3) + offset(log.effort) , data = trainTryP, family = nb, link = 'log', select = TRUE, method = "REML")
 
 
 #Checking if temporal variation exists by including year and quarter into the models
@@ -599,11 +624,15 @@ modAcOnlyBest <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(SSH, 
 ```
 
 ```{r echo=FALSE, fig.height=4, fig.cap = 'Acoustics-Only Model 2: The partial effects plots when a spatial smoother is included.'}
-par(mar=c(4,4,1,2),mfrow = c(2,1))
+# par(mar=c(4,5,1,1),mfrow = c(1,3))
+# plot(modComboBest, select=1, residuals = FALSE, pch = 20, cex = 0.001,
+# shade = T, scheme = 2, theta= 30, phi=20, shade.col = 'lightcyan', all.terms = TRUE)
+## Acoustics Plots ####
+par(mar=c(4,5,1,1),mfrow = c(1,2))
 
-plot(modAcOnlyBest, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'honeydew2', all.terms = TRUE, xlab='Depth (m)', seWithMean = TRUE )
+plot(modAcOnlyBest, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Depth (m)', seWithMean = TRUE, cex.axis = 1.2, cex.lab = 1.5)
 
-plot(modAcOnlyBest, select=3, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'honeydew2', all.terms = TRUE, xlab='SSH (m)', seWithMean = TRUE )
+plot(modAcOnlyBest, select=3, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='SSH (m)', seWithMean = TRUE, cex.axis = 1.2, cex.lab = 1.5 )
 
 mtext(paste0("Acoustics-Only Model (includes only ac. encounters)"), side=3, line=1, outer=TRUE, cex=1, font=1)
 
@@ -611,14 +640,14 @@ mtext(paste0("Acoustics-Only Model (includes only ac. encounters)"), side=3, lin
 
 
 ```{r echo=FALSE, fig.cap = "Acoustics-Only Model 2: Contour plot of spatial smoother. Purple dots represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}  
-par(mfrow = c(1,1))
-plot(modAcOnlyBest, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+par(mfrow = c(1,1),mar=c(5,5,1,1))
+plot(modAcOnlyBest, select = 1, scheme = 2, lwd = 2, cex.axis = 1.2, cex.lab = 1.5 ) #select the first smoother, select = 1
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- subset(trainS999, pa >0) #get points for whales to plot
 
 #for 2D smoother plot
-points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(whales$Longitude, whales$Latitude, pch = 16, col='mediumslateblue', lwd=1.25, cex=1)
 points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
 ```
 
@@ -677,10 +706,171 @@ table = matrix(NA, nrow = 2, ncol = 6)
 colnames(table) = c("Models", "ExpDev", "AIC", "MSEtrain", "MSEtest", "Predictor Variables")
 
 # enter info by row
-table[1,] <- c("Combined Model", paste0(nbExpDev, '%'), round(nbAIC, 2), round(nbMSEtrain,3), round(nbMSEtest,3), paste0('Depth, Temp at 584m, SSHsd, Yr. Qtr, LON:LAT'))
+table[1,] <- c("Combined Model", paste0(nbExpDev, '%'), round(nbAIC, 2), round(nbMSEtrain,3), round(nbMSEtest,3), paste0('Depth, Temp at 584m, SSHsd,LON:LAT'))
 table[2,] <- c("Acoustics Only Model", paste0(modAcOnlyExp, '%'), round(modAcOnlyAIC,2), round(modAcOnlyMSEtrn,3), round(modAcOnlyMSEtest,3), paste0('Depth, SSH, LON:LAT'))
 require(knitr)
 kable(table, caption = "Performance Metrics for Combined Models")
 
 ```
 The table presents performance metrics for the Combined and Acoustic-Only models. The MSE for the train and test data indicated similar predictive performance, and they were also similar across models. All significant variables fit with simple smoothers from Model 2 were also important in Model 1.
+
+```{r echo=FALSE}
+saveRDS(PmEdit, here::here(  paste0('output/models/',loctype, '/data/SighingOnly_25km_Combined.rda') ))
+### SIGHTING DATA ONLY ####
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+
+PmVis <- readRDS(here::here(  paste0('output/models/',loctype, '/data/SighingOnly_25km_Combined.rda') ))
+PmVisPres <- subset(PmVis, sid < 999)  #subsets for all sightings, no acoustics
+PmVisAb <- subset(PmVis, pa == 0)
+
+#pa = 3 needs to be changed to pa =2 and delete the extra row
+dupes <- PmVisPres[duplicated(PmVisPres$effCells),]
+PmVisDup <- subset(PmVisPres, effCells %in% dupes$effCells)
+PmVisDup$pa <- 2  #change all to pa=2, then remove one of each
+PmVisDup2 <- PmVisDup[duplicated(PmVisDup$effCells),]
+#remove all rows of duplicates from PmVisPres to then add in the edited ones i want to keep
+PmVisDupRm <- subset(PmVisPres, !(effCells %in% dupes$effCells))  # all duplicates removed
+PmVisDupAdd <- rbind(PmVisDupRm, PmVisDup2) #add in the set of edited ones
+saveRDS(PmVisDupAdd, here::here(  paste0('output/models/Combined/data/SighingOnly_25km_EditDup.rda') ))
+
+nrow(subset(PmVisDupAdd, acid==999))
+nrow(PmVisDupAdd)
+PmVisEd <- rbind(PmVisDupAdd, PmVisAb)
+
+trainVis = NULL
+testVis = NULL
+seed = 6
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(PmVisEd, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainVis = rbind( trainVis, trainAll )
+testVis  = rbind( testVis,  testAll )
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+
+saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
+saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
+
+
+
+
+#training sets made with all sightings, including ones not heard, A999
+trainA999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
+testA999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_CombA999.rda')  ))
+
+colnames(trainA999)[30] <- 'SST'
+colnames(trainA999)[57] <- 'log.Chla'
+colnames(trainA999)[32] <- 'Temp584m'
+colnames(trainA999)[34] <- 'Depth'
+colnames(trainA999)[38] <- 'SSH'
+colnames(trainA999)[39] <- 'SSHsd'
+
+
+colnames(testA999)[30] <- 'SST'
+colnames(testA999)[57] <- 'log.Chla'
+colnames(testA999)[32] <- 'Temp584m'
+colnames(testA999)[34] <- 'Depth'
+colnames(testA999)[38] <- 'SSH'
+colnames(testA999)[39] <- 'SSHsd'
+
+
+
+modA999 <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort), data = trainA999, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modA999)
+
+modA999b <- gam(pa ~ s(Longitude, Latitude, k=10) + s(Depth, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort), data = trainA999, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modA999b)
+```
+
+```{r echo=FALSE, fig.height=4, fig.cap = 'Sightings-Only Model: The partial effects plots when a spatial smoother is included.'}
+## Sightings Only Plots ####
+par(mar=c(4,4,1,2),mfrow = c(2,2))
+
+plot(modA999b, select=2, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Depth (m)', seWithMean = TRUE )
+
+plot(modA999b, select=3, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab=expression("Chl-a (mg/m"^3*")"), seWithMean = TRUE )
+
+plot(modA999b, select=4, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Temp at 584 m (ºC)', seWithMean = TRUE )
+
+plot(modA999b, select=5, residuals = FALSE, pch = 20, cex=0.001, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='SSHsd (m)', seWithMean = TRUE )
+
+
+mtext(paste0("Sightings Only Model (includes only ac. encounters)"), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+```
+
+
+```{r echo=FALSE, fig.cap = "Acoustics-Only Model 2: Contour plot of spatial smoother. Purple dots represent acoustically detected sperm whale encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}  
+par(mfrow = c(1,1))
+plot(modA999b, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainA999, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.75)
+```
+
+```{r echo=FALSE}
+
+#### PREDICT SIGHTHING ####
+modVisResid<- trainA999 %>% mutate(resid = resid(modA999b), predict = predict(modA999b))
+modVisPred <- predict.gam(modA999b, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+modVisResid$fit <- modVisPred
+
+#using scale of 0,1,2 makes this hard to interpret
+modVisMSEtrn <- mean((modVisResid$pa - modVisResid$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+modVisPredNew <- predict.gam(modA999b, newdata = testA999, type = 'response', se.fit = TRUE)
+modVisPredNew2 <- data.frame(testA999, fit = modVisPredNew$fit, se.fit=modVisPredNew$se.fit)
+modVisMSEtest <- mean((modVisPredNew2$pa - modVisPredNew2$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+# AIC
+modVisAIC <- AIC(modA999b)
+
+# Explained Deviance
+modVisExp = round(((modA999b$null.deviance-modA999b$deviance)/modA999b$null.deviance)*100, 2)
+
+
+# Table ####
+table = matrix(NA, nrow = 1, ncol = 6)
+colnames(table) = c("Models", "ExpDev", "AIC", "MSEtrain", "MSEtest", "Predictor Variables")
+
+# enter info by row
+table[1,] <- c("Acoustics Only Model", paste0(modVisExp, '%'), round(modVisAIC,2), round(modVisMSEtrn,3), round(modVisMSEtest,3), paste0('Depth, SSH, LON:LAT'))
+require(knitr)
+kable(table, caption = "Performance Metrics for Combined Models")
+```
+
+
+
+# nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
+# nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
+```
+

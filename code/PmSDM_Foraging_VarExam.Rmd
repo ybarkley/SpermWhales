@@ -150,9 +150,205 @@ modEKE584m <- gam(pa ~  s(Longitude, Latitude, k=10) +
 summary(modEKE584m) 
 
 modTest <- gam(pa ~  s(Longitude, Latitude, k=10) + s(Temp584m, k=3) + 
-                       s(log.Chla, k=3) + s(temp600_sd.r, k=3) + s(eke600m.r, k=3) +
-                       s(SSHsd, k=3) + offset(log.effort) , data = trainHunt2, family = nb,
+                       s(temp600_sd.r, k=3) + s(eke600m.r, k=3) +
+                        offset(log.effort) , data = trainHunt2, family = nb,
                     link = 'log', select = TRUE, method = "REML")
 summary(modTest) 
+```
+
+
+## Find FORAGING Sperm Whales with high and low SSH
+```{r}
+setwd("C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\For Zack-data/")
+mhi <- readOGR("whales/mhi_coast/Coastline.shp")
+nwhi <- readOGR("whales/nwhi_coast/Coastline.shp")
+
+SSH <- brick(paste0(covar_dir, "SSH.nc"), 
+             varname = "zos")
+
+mhi2 <- raster::shift(x = mhi,
+                      dx = +360)
+nwhi2 <- raster::shift(x = nwhi,
+                      dx = +360)
+
+# Explore Data for gradients
+plot(PmFor2$Longitude, PmFor2$SSHsd)
+plot(PmFor2$Latitude, PmFor2$SSHsd)
+plot(PmFor$Longitude, PmFor$SSHsd)
+
+#Temp 584m ######
+plot(PmFor2$Longitude, PmFor2$Temp584m)
+PmHiT584lo <- subset(PmFor2, Longitude > 200 & Longitude < 205 & Temp584m < 6 & survey == 1604) # low temp
+PmHiT584hi <- subset(PmFor2, Longitude < 180 & Temp584m > 7.5 ) # hi temp
+PmHiT584hib <- subset(PmFor2, Longitude > 185 & Longitude < 190 & Temp584m > 7.5 & survey == 1641) # hi temp
+
+# SSH straight up ####
+PmHiSSH <- subset(PmFor2, Longitude > 198 & Longitude < 202 & SSH > 0.7 & survey == 1604)
+PmHiSSHb <- subset(PmFor2, Longitude > 195 & Longitude < 210 & survey == 1604)
+PmHiSSHb <- subset(PmHiSSHb, !(effCells %in% PmHiSSH$effCells))
+
+#put in the extra detection for effCell = 740
+PmHiSSH <- rbind(PmHiSSH, PmHiSSH[3,])
+getPm <- pmDetsGrid1604[which(pmDetsGrid1604$acid == 14), ]
+
+PmHiSSH[4,3] <- getPm$UTC
+PmHiSSH[4,4] <- getPm$ID
+PmHiSSH[4,6] <- getPm$acid
+PmHiSSH[4,7] <- getPm$sid
+PmHiSSH[4,13] <- getPm$Longitude
+PmHiSSH[4,14] <- getPm$Latitude
+#########
+```
+
+#Make the raster from original SSHsd data
+```{r}
+dateSplit = data.frame(1, time=as.character(as.Date(sshZtidya$date)))  #some data finagling
+dateSplit2 = separate(dateSplit, "time",  c("year", "month", "day")) #splits date into year, month, day
+sshZtidya$year = as.numeric(dateSplit2$year)
+sshZtidya$month = as.numeric(dateSplit2$month)
+sshZtidy2017 = subset(sshZtidya, year == 2017)
+ #add to PmCombo2 to test
+sshZtidy2017 = subset(sshZtidy2017, month == 08)
+
+SSH2017sd <- raster::rasterFromXYZ(sshZtidy2017[, c(1,2,4)])
+
+
+```
+
+#plot for high SSHsd - August 2017
+```{r}
+
+setwd("C:/Users/yvers/Documents/CHP 3/SpermWhales/output/models/ForMcManus")
+
+PmSSHsdAllHi <- subset(PmCombo, sshsd.r > 0.015 & pa >0)
+# PmSSHsdhi <- subset(PmFor, SSHsd > 0.015 & pa >0 & survey == 1706)
+
+PmSSHsdAllHi <- subset(PmSSHsdAllHi, sshsd.r > 0.015 & pa >0 & survey == 1706)
+PmSSHsd1706 <- PmSSHsdAllHi[PmSSHsdAllHi$acid %in% c(149, 186, 208),    ]
+
+
+pal2 <- terrain.colors(8)
+png('PmSSHsdHigh_Aug2017_Big.png', width = 800, height = 500, pointsize = 20)
+
+plot(SSH2017sd,col = pal2, ylim = c(15,31))
+plot(nwhi2, add = T, col = 'black')
+plot(mhi2, add = T, col = 'black', lwd = 4)  # can also specify border
+
+points( Latitudep ~ Longitudep, data = PmSSHsd1706,
+       pch = 16, col='red', lwd=1, cex=0.8 )
+dev.off()
+
+
+sshsdHI_extent <- extent(183, 198, 24, 30)
+SSHsd2017crop <- raster::crop(SSH2017sd, y = sshsdHI_extent)
+mhi3 <- raster::crop(mhi2, y = sshsdHI_extent)
+nwhi3 <- raster::crop(nwhi2, y = sshsdHI_extent)
+
+png('PmSSHsdHigh_Aug2017.png', width = 800, height = 500, pointsize = 20)
+
+# spplot(SSH2016sd)  # in sp, needs axes labels
+plot(SSHsd2017crop, col = pal2 , main = 'High SSHsd, August 2017')
+raster::contour(SSHsd2017crop, add=T, labcex = 0.5, nlevels=5)
+# plot(mhi2, add = T, col = 'black')  # can also specify border
+plot(nwhi3, add = T, col = 'black')
+
+points( Latitudep ~ Longitudep, data = PmSSHsd1706,
+       pch = 16, col='red', lwd=1, cex=1 )
+dev.off()
+
+
+## plot SSH for same whales ####
+
+png('PmSSH_Aug2017.png', width = 800, height = 500, pointsize = 20)
+time_idx <- which( names(SSH) %in% paste0("X2017.08.16.12.00.00"))
+SSH2017 <- subset(x = SSH, 
+              subset = time_idx)
+SSH2017crop <- raster::crop(SSH2017, y = sshsdHI_extent)
+plot(SSH2017crop, col = pal2 , main = 'SSH, August 2017')
+raster::contour(SSH2017crop, add=T, labcex = 0.5, nlevels=5)
+plot(mhi2, add = T, col = 'black', lwd=8)  # can al
+points( Latitudep ~ Longitudep, data = PmSSHsd1706,
+       pch = 16, col='red', lwd=1, cex=1 )
+dev.off()
+
+
+```
+
+###plot for low SSHsd
+```{r}
+
+PmSSHsdlo <- subset(PmFor2, Longitude > 205 & SSHsd < 0.0025)
+
+sshZtidy2010 = subset(sshZtidya, year == 2010)
+ #add to PmCombo2 to test
+sshZtidy2010 = subset(sshZtidy2010, month == 08)
+
+SSH2010sd <- raster::rasterFromXYZ(sshZtidy2010[, c(1,2,4)])
+
+sshsdLO_extent <- extent(202, 210, 17, 22)
+SSHsd2010crop <- raster::crop(SSH2010sd, y = sshsdLO_extent)
+mhi3 <- raster::crop(mhi2, y = sshsdLO_extent)
+nwhi3 <- raster::crop(nwhi2, y = sshsdHI_extent)
+
+png('PmSSHsdLow_Aug2010.png', width = 800, height = 600, pointsize = 20)
+pal2 <- terrain.colors(8)
+# spplot(SSH2016sd)  # in sp, needs axes labels
+
+plot(SSHsd2010crop, col = pal2 , main = 'SSHsd, August 2010')
+raster::contour(SSHsd2010crop, add=T, labcex = 0.5, nlevels=5)
+plot(mhi3, add = T, col = 'black', lwd=8)  # can also specify border
+# plot(nwhi2, add = T, col = 'black')
+
+points( Latitudep ~ Longitudep, data = PmSSHsdlo,
+       pch = 16, col='red', lwd=1, cex=1 )
+dev.off()
+
+
+png('PmSSH_Aug2010.png', width = 800, height = 600, pointsize = 20)
+
+## plot SSH for same whales ####
+time_idx <- which( names(SSH) %in% paste0("X2010.08.16.12.00.00"))
+SSH2010 <- subset(x = SSH, 
+              subset = time_idx)
+SSH2010crop <- raster::crop(SSH2010, y = sshsdLO_extent)
+plot(SSH2010crop, col = pal2 , main = 'SSH, August 2010')
+raster::contour(SSH2010crop, add=T, labcex = 0.5, nlevels=5)
+plot(mhi3, add = T, col = 'black', lwd=8)  # can al
+points( Latitudep ~ Longitudep, data = PmSSHsdlo,
+       pch = 16, col='red', lwd=1, cex=1 )
+
+dev.off()
+```
+
+```{r}
+
+# Plot HIGH SSHsd  ####
+# SSH <- brick(paste0(covar_dir, "SSH.nc"), 
+#              varname = "zos")
+# time_idx <- which( names(SSH) %in% paste0("X", "2016", ".07.16.12.00.00") )
+# 
+# 
+# SSH2016 <- subset(x = SSH, 
+#               subset = time_idx)  #Only looking at SSH for July 2016
+# 
+# SSH2016sd = raster::focal(x = SSH2016,  w = matrix(1/25, 5, 5), fun=sd)
+
+
+            
+
+
+pal2 <- terrain.colors(8)
+# spplot(SSH2016sd)  # in sp, needs axes labels
+plot(SSH2016sd, col = pal2 )
+raster::contour(SSH2016sd, add=T, labcex = 0.5, nlevels=7)
+plot(mhi2, add = T, col = 'black')  # can also specify border
+plot(nwhi2, add = T, col = 'black')
+
+points( Latitudep ~ Longitudep, data = PmSSHsdhi,
+       pch = 16, col='red', lwd=1, cex=0.5 )
+points( Latitudep ~ Longitudep, data = PmHiSSHb,
+       pch = 16, col='purple', lwd=1, cex=0.5 )
+
+
 ```
 

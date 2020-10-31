@@ -35,7 +35,7 @@ SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200531.csv
 SwEnvData_map <- read.csv(here::here('output', 'SpermiesWithEnvData_20200527-scaled.csv'))
 
 #load data from Combined 'loctype' at 25km grid
-SwEnvData_mapb <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+SwEnvData_mapb <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
 
 #The simple maps hate when data crosses the dateline, so for now, I'm adjusting everything back to the eastern side of the dateline for visual purposes
 SwEnvData_map$lon <- ifelse(SwEnvData_map$lon > 1, SwEnvData_map$lon*-1, SwEnvData_map$lon)
@@ -200,7 +200,8 @@ ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
   guides(shape = guide_legend(nrow = 2, byrow = TRUE))
 ```
 
-For Jeff, Oct 12, 2020- depths of constant temp, don't have, but have depths? - NOT WHAT HE WANTED. WANTED DEPTH OF WATER COLUMN WHERE IT WAS 6DEG C
+## For Jeff
+Oct 12, 2020- depths of constant temp, don't have, but have depths? - NOT WHAT HE WANTED. WANTED DEPTH OF WATER COLUMN WHERE IT WAS 6DEG C
 Acoustics only encounters to be consistent
 ```{r}
 
@@ -353,7 +354,80 @@ ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
 
 ggsave(paste0(dir, 'SwMap_T584green.png'), width=8, height = 6, units='in', dpi=300)
 
+#Bathymetry ####
 
+ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
+  geom_point(aes(color=depth.r, shape=factor(year)), size=1.2) +
+  geom_point(PmNonForPres, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+
+  theme_bw() +
+  # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')   +
+ scale_color_gradientn(colors = c("#33cc33","#99ff66","#ff6666","#ff0000"), name="Depth (m)" ) +
+  scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Depth") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+## Encounter Rate Foraging ####
+PmFor <- readRDS(here::here( paste0('data/Pm_ForagingOnly.rda') ))
+PmForAbs <- subset(PmFor, pa == 0)
+PmForPres <- subset(PmFor, pa > 0)
+ggplot(PmFor, aes(Longitude, Latitude)) +
+  geom_point(PmForAbs, mapping = aes(color=pa, shape=factor(year)), size=1.2) +
+  geom_point(PmForPres, mapping = aes(color=pa, shape=factor(year)), size=1.2) +
+  # geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+  # scale_color_discrete(name = "Encounter Rate") +  #if color is factor
+  scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')  +
+  theme_bw()  +
+    # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(19, 3, 8, 18),
+                     # name='Survey Year')   +
+  # scale_fill_manual(values  =c("#AFEEEE", '#00FA9A', '#FF8C00', '#8B0000'), name="Encounter Rate") +
+ scale_color_gradientn(colors =c("#AFEEEE", '#FF8C00', '#FF00FF', '#8B0000'), name=expression(paste("Number of Groups per cell")))  +
+  # scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Foraging Encounter Rate by Year") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SwMap_EncRate3.png'), width=8, height = 6, units='in', dpi=300)
+
+
+## Encounter Rate Non-Foraging ####
+PmNonFor <- readRDS(here::here( paste0('data/Pm_NonForagingOnly.rda') ))
+PmNonForAbs <- subset(PmNonFor, pa == 0)
+PmNonForPres <- subset(PmNonFor, pa > 0)
+nrow(PmNonForAbs)
+ggplot(PmNonFor, aes(Longitude, Latitude)) +
+  geom_point(PmNonForAbs, mapping = aes(color=pa, shape=factor(year)), size=1.2) +
+  geom_point(PmNonForPres, mapping = aes(color=pa, shape=factor(year)), size=1.2) +
+  # geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, fill='Whales'), pch=10, color='darkmagenta')  +
+  # scale_color_discrete(name = "Encounter Rate") +  #if color is factor
+  scale_shape_manual(values=c(19, 3, 8, 18),
+                     name='Survey Year')  +
+  theme_bw()  +
+    # scale_y_continuous(name='Latitude',breaks=seq(0,30,2))+
+  # scale_x_continuous(name='Longitude', breaks=round(long,1)) +
+   # scale_shape_manual(values=c(19, 3, 8, 18),
+                     # name='Survey Year')   +
+  # scale_fill_manual(values  =c("#AFEEEE", '#00FA9A', '#FF8C00', '#8B0000'), name="Encounter Rate") +
+ scale_color_gradientn(colors =c("#AFEEEE", '#FF8C00', '#FF00FF', '#8B0000'), name=expression(paste("Number of Groups per cell")))  +
+  # scale_fill_manual(values = 10, name='') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("Non-Foraging Encounter Rate by Year") +
+  theme(legend.position="right", legend.box='vertical',legend.text = element_text(size = 10),legend.title = element_text(size=9),plot.title = element_text(hjust = 0.5))+
+  guides(shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(paste0(dir, 'SwMap_NonForEncRate.png'), width=8, height = 6, units='in', dpi=300)
 
 
 
