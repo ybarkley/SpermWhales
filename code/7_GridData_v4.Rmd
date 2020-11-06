@@ -15,7 +15,7 @@ That said, a loop to load all centroid data is located in the LAST CHUNK of the 
 Load functions 
 ```{r}
 
-source('./code/FromTaiki/gridFunctions_v3.R')
+source(here::here('./code/FromTaiki/gridFunctions_v3.R'))
 library(PAMmisc)
 library(tidyverse)
 library(lubridate)

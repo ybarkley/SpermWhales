@@ -297,6 +297,8 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffbath))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffbath))*0.82, paste0( 'p = ',round(pval,3)))
+
 abline(coefficients(lmbest))
 # summary(lmbest)
 # plot(fitted(lmbest), resid(lmbest))
@@ -311,6 +313,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdland))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdland))*0.81, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 # summary(lmbest)
 
@@ -320,6 +323,8 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffslp))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffslp))*0.81, paste0( 'p = ',round(pval,3)))
+
 abline(coefficients(lmbest))
 
 
@@ -329,6 +334,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffasp))*0.99, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffasp))*0.92, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 
@@ -338,6 +344,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdmst))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffdmst))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffsst),   xlab = 'Mean Distance (km)', ylab = 'Diff in SST (°C)')
@@ -346,6 +353,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsst))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsst))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$chla_m),    xlab = 'Mean Distance (km)', ylab = 'Diff in Chl a (mg m-3)')
@@ -354,6 +362,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$chla_m))*0.95, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$chla_m))*0.9, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$difft600),  xlab = 'Mean Distance (km)', ylab = 'Diff in Temp at 584m (°C)')
@@ -362,6 +371,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$difft600))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$difft600))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffssh),   xlab = 'Mean Distance (km)', ylab = 'Diff in SSH (m)')
@@ -370,6 +380,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffssh))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffssh))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffsshsd), xlab = 'Mean Distance (km)', ylab = 'Diff in SSHsd (m)')
@@ -378,6 +389,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsshsd))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffsshsd))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffeke),   xlab = 'Mean Distance (km)', ylab = 'Diff in EKE (m/s)')
@@ -386,6 +398,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffeke))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffeke))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 
 plot(lrbestyay$m, abs(lrbestyay$diffwp),    xlab = 'Mean Distance (km)', ylab = 'Diff in Wave Power (kW/m)')
@@ -394,6 +407,7 @@ pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
 # text(max(sw.bestA2$d2smt_km)*0.75, min(sw.bestB2$d2smt_km), paste0( 'pval=',round(pval,2)))
 text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffwp))*0.9, paste0( 'R2 = ',round(r2,2)))
+text(min(lrbestyay$m)+2, max(abs(lrbestyay$diffwp))*0.82, paste0( 'p = ',round(pval,3)))
 abline(coefficients(lmbest))
 dev.off()
 ```
@@ -601,7 +615,7 @@ require(Cairo)
 Cairo(here::here('figures', paste0('LeftVsRIght_LinMods2.png')), width=10,height=10, units='in', dpi=300, bg='white')
 par(mfrow=c(4,3),mar=c(4,4,3,3))
 
-plot(sw.bestA2$bath, sw.bestB2$bath,           xlab = 'Depth (m), Left', ylab ='Depth (m), Right')
+plot(sw.bestA2$bath, sw.bestB2$bath, xlab = 'Depth (m), Left', ylab ='Depth (m), Right')
 lmbest <- lm(sw.bestA2$bath ~ sw.bestB2$bath)
 pval = round(summary(lmbest)$coefficients[2,4],5)
 r2 = summary(lmbest)$adj.r.squared
@@ -691,9 +705,6 @@ text(max(sw.bestA2$wavepow)*0.88, min(sw.bestB2$wavepow)*3, paste0( 'r = ',round
 dev.off()
 
 ```
-
-
-
 
 
 ```{r}

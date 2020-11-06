@@ -1,0 +1,129 @@
+---
+title: "Tally the Results"
+author: "Yvonne Barkley"
+date: "10/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Combined
+```{r echo=FALSE, eval=FALSE}
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+PmCombo = readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+
+#Extract totals for Results - DONT FORGET PA == 2 OR 3
+PmVisAc <- subset(PmCombo, sid < 999)  # sighted acoustic
+
+nrow(subset(PmCombo, pa==0))
+nrow(subset(PmCombo, pa>0))
+
+# look3 <- readRDS(here::here( paste0('/output/AllDetectionsGrid-25km-Combined.rda') ))
+PmVis <- readRDS(here::here(  paste0('output/models/',loctype, '/data/SighingOnly_25km_Combined.rda') ))
+PmVisEd <- readRDS(here::here(  paste0('output/models/Combined/data/SighingOnly_25km_EditDup.rda') ))
+
+aggregate(x = PmVisAc$pa,                # Specify data column
+          by = list(PmVisAc$survey),              # Specify group indicator
+          FUN = sum)
+aggregate(x = PmVisEd$pa,                # Specify data column
+          by = list(PmVisEd$survey),              # Specify group indicator
+          FUN = sum)
+
+```
+Acoustics Only
+```{r echo=FALSE, eval=FALSE}
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'AcOnly'
+loctype2 = 'Ac'
+PmAcOnly <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+
+#Extract totals for Results - DONT FORGET PA == 2 OR 3
+PmAcLoc <- subset(PmAcOnly, pa>0 & loc==1)
+aggregate(x = PmAcLoc$pa,                # Specify data column
+          by = list(PmAcLoc$survey),              # Specify group indicator
+          FUN = sum)    
+
+PmAcTrk <- subset(PmAcOnly, pa>0 & loc==0 & sid == 999)
+aggregate(x = PmAcTrk$pa,                # Specify data column
+          by = list(PmAcTrk$survey),              # Specify group indicator
+          FUN = sum)                            # Specify function (i.e. sum)
+
+```
+
+
+Sightings Only
+```{r}
+PmVis2 <- readRDS(here::here(  paste0('data/Pm_Sighting.rda') ))
+PmVis3 <- subset(PmVis, pa>0 & acid == 999)
+aggregate(x = PmVis3$pa,                # Specify data column
+          by = list(PmVis3$survey),              # Specify group indicator
+          FUN = sum) 
+
+test3=subset(PmEdit, acid==999) #from AcousticCombined
+test3$pa = 1
+test3 = subset(test3, survey == 1303)
+aggregate(x = test3$pa,                # Specify data column
+          by = list(test3$survey),              # Specify group indicator
+          FUN = sum) 
+
+```
+
+
+Foraging and Non-Foraging
+```{r}
+PmForSum <- readRDS(here::here(  paste0('data/Pm_ForagingOnly.rda') ))
+PmForSum <- subset(PmForSum, pa >0)
+#how many acoustic only encounters?
+PmForAcOnly <- subset(PmForSum, sid==999) 
+sum(PmForAcOnly$pa)
+
+PmForLoc <- subset(PmForSum, sid==999 & loc ==1) 
+sum(PmForLoc$pa)
+PmForTrk <- subset(PmForSum, sid==999 & loc ==0) 
+sum(PmForTrk$pa)
+#how many sighted acoustic encounters?
+PmForVisAc <- subset(PmForSum, sid!=999) 
+sum(PmForVisAc$pa)
+
+aggregate(x = test3$pa,                # Specify data column
+          by = list(test3$survey),              # Specify group indicator
+          FUN = sum) 
+
+
+
+PmNonForSum <- readRDS(here::here(  paste0('data/Pm_NonForagingOnly.rda') ))
+PmNonForSum <- subset(PmNonForSum, pa >0)
+
+PmNonForLoc <- subset(PmNonForSum, sid==999 & loc ==1) 
+sum(PmNonForLoc$pa)
+PmNonForTrk <- subset(PmNonForSum, sid==999 & loc ==0) 
+sum(PmNonForTrk$pa)
+#how many sighted acoustic encounters?
+PmNonForVisAc <- subset(PmNonForSum, sid!=999) 
+sum(PmNonForVisAc$pa)
+
+
+```
+
+
+```{r}
+# Table ####
+table = matrix(NA, nrow = 5, ncol = 2)
+colnames(table) = c("Encounter Type", "Total")
+
+# enter info by row
+table[1,] <- c("Sighted Acoustic", sum(PmVisAc$pa) )
+table[2,] <- c("Localized Acoustic", sum(PmAcLoc$pa) )
+table[3,] <- c("Trackline Acoustic", sum(PmAcTrk$pa) )
+table[4,] <- c("Foraging", sum(PmForSum$pa) )
+table[5,] <- c("Non-Foraging", sum(PmNonForSum$pa) )
+
+require(knitr)
+kable(table, caption = "Encounter Totals")
+```
+

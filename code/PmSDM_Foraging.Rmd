@@ -443,6 +443,12 @@ modForg2D3 <- gam(pa ~  s(Longitude, Latitude, k=10) + s(SST, k=3) + s(Temp584m,
 summary(modForg2D3)
 
 
+# Using all Forage data
+modForageAll <- gam(pa ~  s(Longitude, Latitude, k=10) + s(depth.r, k=3) + s(distland.r, k=3)  + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort) , data = PmFor, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modForageAll) 
+modForageAll <- gam(pa ~  s(Longitude, Latitude, k=10) + s(distseamt.r, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSHsd, k=3) + offset(log.effort) , data = PmFor, family = nb, link = 'log', select = TRUE, method = "REML")
+
+
 ```
 
 
@@ -558,9 +564,9 @@ mtext(paste0("Foraging Whales"), side=3, line=1, outer=TRUE, cex=1, font=1)
 
 
 ```{r eval=FALSE, echo=FALSE, fig.cap = "Foraging Model: Contour plot of spatial smoother. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}
-par(mfrow = c(1,1),mar=c(5,5,1,1))
+par(mfrow = c(1,1),mar=c(5,5,3,1))
 
-plot(modForageBest, select = 1, scheme = 2, lwd = 2, cex.axis = 1.2, cex.lab = 1.5) #select the first smoother, select = 1
+plot(modForageBest, select = 1, scheme = 2, lwd = 2, cex.axis = 1.2, cex.lab = 1.5, main='') #select the first smoother, select = 1
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- subset(trainHunt, pa >0) #get points for whales to plot
@@ -677,19 +683,19 @@ par(mar=c(4,4,1,3),mfrow = c(1,1))
 
 ```{r echo=FALSE, fig.cap = "Non-Foraging Model selected depth and spatial smoother, which was significant despite the straight contour lines. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model.", fig.width=8, fig.height=9}
 
-par(mfrow = c(1,1))
+par(mfrow = c(1,1), mar=c(5,5,3,1))
 
 
-plot(modNonForBest, select=2, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Depth (m)' , seWithMean = TRUE)
+plot(modNonForBest, select=2, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='Depth (m)' , seWithMean = TRUE, cex.axis = 1.2, cex.lab = 1.5 )
 
 
-plot(modNonForBest, select = 1, scheme = 2, lwd = 2) #select the first smoother, select = 1
+plot(modNonForBest, select = 1, scheme = 2, lwd = 2,cex.axis = 1.2, cex.lab = 1.5, main='' ) #select the first smoother, select = 1
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- subset(trainNonFor, pa >0) #get points for whales to plot
 
 #for 2D smoother plot
-points(whales$Longitude, whales$Latitude, pch = 10, col='mediumslateblue', lwd=1.25, cex=1)
+points(whales$Longitude, whales$Latitude, pch = 16, col='mediumslateblue', lwd=1.25, cex=1)
 points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
 ```
 
