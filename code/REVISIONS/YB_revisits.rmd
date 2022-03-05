@@ -1,0 +1,223 @@
+---
+title: "SDMs Revisited"
+author: "Yvonne Barkley, PhD"
+date: "2/7/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+surveynum = 1641
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+
+```
+
+```{r}
+# LOAD EDITED gridEffort and centroidALL - already checked for things in 1_GridData_v4
+
+gridEffort <- readRDS(here::here(  paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '.rda') ))
+
+centroidAll <- readRDS(here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids', surveynum, '_', gridsize, 'km_', loctype2, '.rda')))
+
+```
+
+
+
+
+# The Complete Data Set
+```{r, echo=F, eval=FALSE, message=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+library(lubridate)
+```
+
+```{r echo=FALSE}
+#Values for COMBINED MODELS
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+#data has logged vars and temporal variables
+## SAVED from line 251 in 10_PmSDM_AcousticCombined.rmd - Does not include forage column
+PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') )) #no A999's
+PmCombo2 <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+PmCombined <- readRDS( here::here('data/Pm_Combined.rda')) #contains A999's
+```
+
+
+# Sperm whale data used for centroids
+```{r}
+sw <- read.csv(here::here('output/SpermiesFinalLR_20200919.csv'))
+
+length(unique(sw$ID))
+
+
+```
+
+
+
+#From 10_PmSDM_Foraging
+
+### 2022: Redo Click Codes
+```{r}
+PmCombo$click_code[PmCombo$ID == "1303_42_21"] <- "cdckrs"  #(was ckrs, added coda)
+PmCombo$click_code[PmCombo$ID == "1604_30_999"] <- "rs"     #(was s)
+PmCombo$click_code[PmCombo$ID == "1604_67_999"] <- "rs"     #(was s)
+PmCombo$click_code[PmCombo$ID == "1705_251_999"] <- "rs"    #(was s)
+PmCombo$click_code[PmCombo$ID == "1706_2_999"] <- "rs"      #(was r)
+PmCombo$click_code[PmCombo$ID == "1706_41_999"] <- "rs"     #(was s)
+# PmCombo$click_code[PmCombo$ID == "1706_135_999"] <- "ckrs" #not included as separate encounter, was combined with 1706A49 in same cell, which is also ckrs
+PmCombo$click_code[PmCombo$ID == "1303_71_999"] <- "rs"     #(was s)
+
+
+```
+
+### Run some totals
+Sightings, Sightings/Acoustics, Acoustics Only
+```{r}
+#sighted only
+PmVisOnly <- filter(PmCombined, acid == 999)
+aggregate(x = PmVisOnly$pa,                # Specify data column
+          by = list(PmVisOnly$survey),              # Specify group indicator
+          FUN = sum)
+
+PmVisOnly2 <- readRDS( here::here('data/Pm_Sighting.rda'))
+
+PmVisOnly2_A999 <- filter(PmVisOnly2, acid == 999)
+aggregate(x = PmVisOnly2_A999$pa,                # Specify data column
+          by = list(PmVisOnly2_A999$survey),              # Specify group indicator
+          FUN = sum)
+
+PmVisEd <- readRDS(here::here(  paste0('output/models/Combined/data/SighingOnly_25km_EditDup.rda') ))
+PmVisEd_A999 <- filter(PmVisEd, acid == 999)
+
+aggregate(x = PmVisEd_A999$pa,                # Specify data column
+          by = list(PmVisEd_A999$survey),              # Specify group indicator
+          FUN = sum)
+
+PmVis <- readRDS(here::here(  paste0('output/models/',loctype, '/data/SighingOnly_25km_Combined.rda') ))
+PmVisOnly3 <- filter(PmVis, acid == 999)
+
+
+
+
+#Sighted and acoustic acid <999, sid <999
+PmVisAc <- filter(PmCombo, acid <999 & sid< 999)
+aggregate(x = PmVisAc$pa,                # Specify data column
+          by = list(PmVisAc$survey),              # Specify group indicator
+          FUN = sum)
+
+#sighted and acoustic acid <999, sid <999 - 2 less 1706 than table
+PmAcLoc <- filter(PmCombo, sid == 999 & loc == 1)
+aggregate(x = PmAcLoc$pa,                # Specify data column
+          by = list(PmAcLoc$survey),              # Specify group indicator
+          FUN = sum)
+
+#Acoustics - Localized / Trackline encounters
+PmAcLoc2 <- readRDS( here::here('data/Pm_Acoustics.rda'))
+
+#has 2 more 1706 than PmAcLoc (1706_327_999, 1706_325_999) - ALL GOOD with table
+PmAcLoc_2 <- filter(PmAcLoc2, sid == 999 & loc == 1)
+aggregate(x = PmAcLoc_2$pa,                
+          by = list(PmAcLoc_2$survey),    
+          FUN = sum)
+
+#has 2 less 1706 than the table & 2 more 1641! WTF
+PmAcUnloc <- filter(PmCombo, sid == 999 & loc == 0)
+aggregate(x = PmAcUnloc$pa,                
+          by = list(PmAcUnloc$survey),    
+          FUN = sum)
+#has 2 less 1706 than the table!
+PmAcUnloc_2 <- filter(PmAcLoc2, sid == 999 & loc == 0)
+aggregate(x = PmAcUnloc_2$pa,                
+          by = list(PmAcUnloc$survey),    
+          FUN = sum)
+
+
+# Check # of encounters by survey
+Pm1303 <- filter(PmCombo, survey == 1303); sum(Pm1303$pa)
+Pm2017 <- filter(PmCombo, survey == 1706 | survey ==1705)
+sum(Pm2017$pa)
+
+Pm1706b <- filter(CompleteScaled, survey == 1706, acid < 999) #CompleteScaled from 9_DataCleanup
+
+Pm2017_pre <- filter(CompleteScaled, survey == 1705 | survey == 1706)
+sum(Pm2017_pre$pa)
+
+```
+
+
+### 2022: Sanity Checks
+
+## Foraging and Non-Foraging Group Models
+
+#### Foraging models incorporated a subset of the sperm whale encounters from the Combined Models (sighted with acoustics, and acoustics only) that only included encounters with **regular clicks** and **creaks** to indicate foraging.
+
+
+```{r eval=FALSE,echo=FALSE}
+## Forage and Social Group Data Subset ####
+#1. Denote forage or not. 
+PmFor1 <- filter(PmCombo, grepl('r|k', click_code))   # the 'k' implies ck for creaks because c also for codas
+PmFor0 <- filter(PmCombo, !grepl('r|k', click_code))
+PmFor1$forage <- 1  #forage
+PmFor0$forage <- 0  #non-forage
+PmForage <- bind_rows(PmFor1, PmFor0)
+
+nrow(PmFor0)
+nrow(PmFor1)
+
+#2. Denote non-foraging
+PmPositive <- filter( PmCombo, pa > 0 )
+PmAbsent <- filter( PmCombo, pa == 0 )
+
+PmNonFor1 <- filter(PmPositive, !grepl('r|k', click_code))  #subset all encs without r or ck in click_code
+PmNonFor0 <- filter(PmPositive, grepl('r|k', click_code))
+
+#designate whether the encounters included codas (1) or not (0)
+PmNonFor1$nonfor <- 1
+PmNonFor0$nonfor <- 0
+PmAbsent$nonfor <- 0
+
+PmNonFor <- rbind(PmNonFor1,PmNonFor0, PmAbsent)
+
+
+PmNonFor2 <- PmNonFor[, c(1,2,4,54,62)]
+
+nrow(PmNonFor1)  # represent all non-foraging 
+nrow(PmNonFor0)  # represent all foraging encounters, which are now 0
+```
+
+
+```{r}
+# How many encounters are foraging and non-foraging? 196?! Not 209...
+sum(PmFor1$pa) # 109 foraging, not include pa >1, 122
+sum(PmNonFor1$pa) #71 non-foraging, not include pa >1, 74
+
+# How many cells have multiple groups, pa > 1? How many total groups? 
+PmFor_multi <- PmFor1[which(PmFor1$pa>1),]; length(PmFor_multi$pa);sum(PmFor_multi$pa)
+PmNonFor_multi <- PmNonFor1[which(PmNonFor1$pa>1),]; length(PmNonFor_multi$pa); sum(PmNonFor_multi$pa)
+
+
+# Are encounters used >1 between foraging and non-foraging models? NO
+PmFor1$ID %in% PmNonFor1 
+PmNonFor1$ID %in% PmFor1
+```
+
+```{r}
+
+
+```
+
+
