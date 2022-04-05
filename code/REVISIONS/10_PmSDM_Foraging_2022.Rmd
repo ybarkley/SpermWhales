@@ -387,7 +387,7 @@ saveRDS(testNonFor, here::here(  paste0('output/models/',loctype, '/data/2022_re
 # nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
 # nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
 ```
-
+### Load Train and Test data
 ```{r echo=FALSE}
 ## FORAGE/NON-FORAGE: LOAD TRAIN and TEST ####
 # trainHunt <- trainForg
@@ -412,8 +412,8 @@ colnames(testHunt)[39] <- 'SSHsd'
 
 #seed 1
 
-trainNonFor <- readRDS(here::here(  paste0('output/models/',loctype, '/data/2022_revisions/Train_',   gridsize, 'km_', loctype2, '_NonForRevise.rda')  ))
-testNonFor <- readRDS(here::here(  paste0('output/models/',loctype, '/data/2022_revisions/Test_',     gridsize, 'km_', loctype2, '_NonForRevise.rda')  ))
+trainNonFor <- readRDS(here::here(  paste0('code/REVISIONS/train_testdata/Train_',   gridsize, 'km_', loctype2, '_NonForRevise.rda')  ))
+testNonFor <- readRDS(here::here(  paste0('code/REVISIONS/train_testdata/Test_',     gridsize, 'km_', loctype2, '_NonForRevise.rda')  ))
 
 colnames(trainNonFor)[30] <- 'SST'
 colnames(trainNonFor)[34] <- 'Depth'
@@ -432,10 +432,16 @@ colnames(testNonFor)[39] <- 'SSHsd'
 
 ###TOTALS for Whale Encounters ####
 PmForage_total <- subset(PmForage, pa >0 & forage ==1)
+PmForage_totalb <- select(PmForage_total, pa, ID, forage, loc)
 sum(PmForage_total$pa) # since pa can be > 1
+sum(subset(PmForage_totalb, pa >0 & forage ==1 & loc==1)$pa) #localized forage
+sum(subset(PmForage_totalb, pa >0 & forage ==1 & loc==0)$pa) #trackline and sighted forage
+
+
 
 PmNonFor_total <- subset(PmNonFor, pa >0 & nonfor ==1)
 sum(PmNonFor_total$pa)
+PmNonFor_totalb <- select(PmNonFor_total, pa, ID, nonfor, loc)
 
 ```
 
@@ -732,7 +738,7 @@ summary(modNonFor2)
 modNonFor2 <- modNonForBest
 saveRDS(modNonForBest,  here::here( paste0('code/REVISIONS/BEST_NonForagingModel.rda') ))
 
-
+modNonForBest <-  readRDS(here::here( paste0('code/REVISIONS/BEST_NonForagingModel.rda') ))
 ```
 
 ### Non-Foraging Effects Plots
@@ -894,7 +900,7 @@ colnames(table2) = c("Models", "ExpDev", "AIC", "MSEtrain", "MSEtest", "Predicto
 
 ### HARD CODED SOME VALUES BC THEY WERE BEING A LITTLE BITCH
 table2[1,] <- c("Foraging", paste0(nbExpDev1, '%'), 677.37, round(0.03002856,3), round(0.02922875,3), 
-              paste0('Temp at 584 m, log.Chla, SSHsd, LON:LAT'))
+              paste0('SST, Temp at 584 m, log.Chla, SSHsd, LON:LAT'))
 table2[2,] <- c("Non-Foraging", paste0(nbExpDevLL1, '%'), round(AICNonForage,2), round(nbMSEtrainLL1,3),
                round(nbMSEtestLL1,3), paste0('Depth, LON:LAT'))
 require(knitr)
