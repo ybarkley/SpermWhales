@@ -312,8 +312,8 @@ makeGrid <- function(x, pixel=NULL, buffer_m=0, plot=FALSE) {
     # pixel <- 0.018         # 2km
     # always .009 pixel degrees / km
     # browser()
-    pixOpts <- c(.225, .09, .1, .045, .027, .018)
-    pixText <- paste0(' (', c('~25km', '~10km', '.1 degrees', '~5km', '~3km', '~2km'), ')')
+    pixOpts <- c(.225, 0.144, .09, .1, .045, .027, .018)
+    pixText <- paste0(' (', c('~25km','~16km', '~10km', '.1 degrees', '~5km', '~3km', '~2km'), ')')
     if(is.null(pixel)) {
         pChoice <- menu(title = 'Choose a pixel size (degrees) for creating your grid:',
                         choices = paste0(pixOpts, pixText))
@@ -562,8 +562,8 @@ doAllGrid <- function(gps, dets, bounds=NULL, trunc_m, dsmodel=NULL, pixel=NULL,
     # pixel <- 0.027         # 3km
     # pixel <- 0.018         # 2km
     # always .009 pixel degrees / km
-    pixOpts <- c(.225, .09, .1, .045, .027, .018)
-    pixText <- paste0(' (', c('~25km', '~10km', '.1 degrees', '~5km', '~3km', '~2km'), ')')
+    pixOpts <- c(.225, 0.144, .09, .1, .045, .027, .018)
+    pixText <- paste0(' (', c('~25km','~16km', '~10km', '.1 degrees', '~5km', '~3km', '~2km'), ')')
     if(is.null(pixel)) {
         pChoice <- menu(title = 'Choose a pixel size (degrees) for creating your grid:',
                         choices = paste0(pixOpts, pixText))
@@ -635,7 +635,7 @@ gridCentroid <- function(x, gps) {
         UTC_end <- x$effort$last[eff]
         
         #How many minutes were spent in each cell? Is the start and end of effort in each cell > 1 day?
-        UTC_diff <- round(difftime(UTC_start, UTC_end, units='mins'),1)
+        UTC_diff <- round(difftime(UTC_end, UTC_start, units='mins'),1)
         
         #combine it all
         ctdf <- data.frame(effCells=eff, `EffArea` = EffArea, `start`=UTC_start,
