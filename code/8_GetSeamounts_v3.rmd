@@ -3,6 +3,8 @@ title: "8_GetSeamounts_v3"
 author: "YB"
 date: "September 13, 2020"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r}
@@ -21,7 +23,6 @@ library(maptools)
 # Set local dir
 # setwd("C:\\Users\\Brett.Cooper\\Downloads\\seamounts\\seamounts")
 setwd("C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\data\\seamounts")
-
 
 # read in the seamounts
 seamounts <- st_read("Seamounts.shp")
@@ -77,19 +78,19 @@ seamounts_HI <- readRDS(here::here('data', 'seamounts_tot.rda'))
 #Get Distances to Seamounts
 ```{r}
 ########## RUN SEAMOUNT DISTANCES ######
-surveynum = 1705
-gridsize = 10
-loctype = 'trackline'
-loctype2 = 'trk'
+# surveynum = 1641
+# gridsize = 16
+# loctype = 'Combined'
+# loctype2 = 'Comb'
 
 # fpath = 
  #load Hawaii seamount data
 # sw <- readRDS(here::here('output', 'centroids1706_10km.rda')) #load centroid locations from gridding data
 
 #for 700 m 
-# sw <- readRDS( paste0('output/envData/', surveynum, '_', gridsize, 'km_', loctype2, '_sw.rda' ) )
+sw <- readRDS( paste0('output/envData/16 km-Combined/', 'AllSurveys_', gridsize, 'km_', loctype2, '_sw.rda' ) )
 
-sw <- readRDS( paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_sw.rda' ) )
+
 lon = sw$lon
 lat = sw$lat
 dates = sw$UTC

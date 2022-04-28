@@ -24,7 +24,7 @@ library(Distance)
 
 ##Load parameters
 ```{r}
-surveynum = 1706
+surveynum = 1641
 gridsize = 25
 loctype = 'Combined'
 loctype2 = 'Comb'
@@ -124,7 +124,7 @@ pmDets$distance <- abs(pmDets$distance)*1000
 
 
 # pmDets <- filter(pmDets, type == 'best' | sid < 999, itrk==1)
-# pmDetsAc <- filter(pmDets, sid == 999)
+pmDetsAc <- filter(pmDets, sid == 999)
 # pmDetsub <- filter(pmDets, survey == surveynum, acid >= 71 & acid <= 74)
 ```
 
@@ -202,7 +202,6 @@ saveRDS(gridEffort, here::here(  paste0('output/gridEffort/', gridsize, ' km-', 
 
 saveRDS(centroidAll, here::here(paste0('output/centroids/', gridsize, ' km-', loctype), paste0('centroids', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda')))
 ```
-
 
 
 #GRID QC

@@ -539,6 +539,7 @@ assign(dataname, trythis2)
 #save completed file
 saveRDS(assign(dataname, trythis2), here::here( paste0('output/envData/', gridsize, ' km-', loctype) , dataname) )
 
+##SAVE AllSurveys_25km_Ac_complete.rda / AllSurveys...Comb_complete.rda####
 CompleteTotal <- readRDS( paste0('output/envData/', gridsize, ' km-', loctype, '/', surveynum, '_', gridsize, 'km_', loctype2, '_complete.rda') )
 ```
 
@@ -615,7 +616,7 @@ CompleteTotal <- CompleteTotal[ , -c(15,18)]  #extra lat lon cols don't need
 sum(is.na(CompleteTotal[,18:29]))     # Total NA for env data columns
 colSums(is.na(CompleteTotal[,18:29])) # Total NA per column
 
-
+## SAVE CompletePm_25km_Comb/AcOnly_raw.rda ####
 saveRDS(CompleteTotal, here::here(  paste0('output/envData/', gridsize, ' km-', loctype, '/CompletePm_', gridsize, 'km_', loctype2, '_raw.rda')  ))
 
 test <- readRDS(here::here(  paste0('output/envData/', gridsize, ' km-', loctype, '/CompletePm_', gridsize, 'km_', loctype2, '_raw.rda')  ))
@@ -648,6 +649,7 @@ noA999 <- subset(CompleteScaled, acid != 999)
 CompleteAbs <- subset(CompleteScaled, pa ==0)
 CompleteScaled2 <- bind_rows(noA999, CompleteAbs)
 
+## SAVE CompletePm_25km_Comb/AcOnly_scaled.rda ####
 
 write.csv(CompleteScaled2, here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaled.csv')), row.names = FALSE)
 

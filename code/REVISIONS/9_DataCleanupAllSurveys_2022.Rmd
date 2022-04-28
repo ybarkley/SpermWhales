@@ -128,7 +128,9 @@ Fill NAs to see where they are
 
 env1_sst[env1_sst[,10]=='NA'] <- NA      
 env2_chla[env2_chla[,10]=='NA'] <- NA       
-env3_godas600[env3_godas600[,14]=='NA'] <- NA  
+
+env3_godas600[env3_godas600[,5]=='NA'] <- NA  
+
 env4_ww3[env4_ww3[,15]=='NA'] <- NA        
 env5_bath[env5_bath[,1]=='NA'] <- NA
 # env67_slpasp[env67_slpasp[,3]=='NA'] <- NA    
@@ -166,7 +168,7 @@ env10_sshsdSORT<- arrange(env10_sshsd, effCells)
 env11_ekeSORT <- arrange(env11_eke, effCells)
 env12_d2smtSORT<- arrange(env12_d2smt, effCells)
 
-PmEnvTMP = data.frame(env1_sstSORT[, c(1:3, 5:10)], `chla`=env2_chlaSORT[, 9], `temp600`=env3_godasSORT[,14], `wavepow`=env4_ww3SORT[,15], `bath_m`= env5_bathSORT$bath_m, 'd2land'=env8_d2landSORT[,1], `ssh`=env9_sshSORT[,11], `sshsd`=env10_sshsdSORT[,9], `eke`=env9_sshSORT[,16], `d2smt`=env12_d2smtSORT[,1])
+PmEnvTMP = data.frame(env1_sstSORT[, c(1:3, 5:10)], `chla`=env2_chlaSORT[, 9], `temp600`=env3_godasSORT[,5], `wavepow`=env4_ww3SORT[,15], `bath_m`= env5_bathSORT$bath_m, 'd2land'=env8_d2landSORT[,1], `ssh`=env9_sshSORT[,11], `sshsd`=env10_sshsdSORT[,9], `eke`=env9_sshSORT[,16], `d2smt`=env12_d2smtSORT[,1])
 colnames(PmEnvTMP)[colnames(PmEnvTMP) == "sst_mean"] <- "sst"
 
 
@@ -525,6 +527,11 @@ merge_tmp2 <- dplyr::select(mergeClickDat, c(6,2,23,19:22,1,3,46,4,5,27,35,36,29
 
 merge_tmp3 <- merge_tmp2 %>% dplyr::rename(UTC=UTC.x, UTCp = UTC.y, Longitude=Longitude.x, Latitude = Latitude.x, Latitudep = Latitude.y, Longitudep = Longitude.y, survey=survey.y)
 merge_tmp3 <- merge_tmp3[,-17] #remove extra survey column
+
+
+#REMOVE A999s
+merge_tmp3 <- dplyr::filter(merge_tmp3, acid <999) #remove extra survey column
+
 
 
 #merge absence data with acoustic encounter data to include all envData with the aux acoustic information

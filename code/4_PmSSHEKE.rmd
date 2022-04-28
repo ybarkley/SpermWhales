@@ -21,12 +21,19 @@ This uses the data from CMEMS instead of GODAS. There are several papers that us
 library(tidyverse)
 library(tidync)
 library(ncdf4)
+library(raster)
 
 
 flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
 
 #Use 'global-reanalysis-phy-001-030-monthly_SSHAUV.nc' from CMEMS
-sshnc = paste0(here::here('data'), '/', flist[11])
+sshnc = paste0(here::here('data'), '/', flist[11]) #flist don't work no more
+#2022: was trying this stuff for pampal code, but not necessary
+sshnc = list.files(path = 'E:\\BACKUP-PhD\\Chapter 3-Sperm SDM\\code_data\\SpermWhales\\data',
+                   pattern = 'nc') #flist don't work no more
+
+sshnc = nc_open(sshnc[11])
+attributes(sshnc$var)$names
 
 nc <- nc_open(sshnc)
 attributes(nc$var)$names
