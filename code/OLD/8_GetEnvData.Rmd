@@ -1,0 +1,672 @@
+---
+title: "Environmental Data"
+author: "Yvonne Barkley"
+date: "4/5/2020"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=14, fig.height=7, warning=FALSE,message=FALSE,tidy=TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+# knitr::opts_knit$set(root.dir=normalizePath(".."))
+# knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file()) #doesn't work...should allow for finding dir different than the code's dir
+```
+
+libraries: I don't know if all are necessary. At one point they were...
+```{r message=F}
+library(lubridate)
+library(tidyverse)
+library(ncdf4)
+library(reshape2)
+library(dplyr)
+library(lattice)
+library(tidync)
+library(ncmeta)
+library(maps)
+library(stars)
+library(ggplot2)
+library(devtools)
+library(RNetCDF)
+library(raster)
+library(sp)
+library(rgdal)
+library(maptools)
+library(here) #helps with stupid root dir and accessing subfolders, it's awesome.
+library(rerddap)
+```
+
+# 1. load detection dataset
+```{r message=F}
+#Load output from 1_TidySpermWhale code
+sw <- read_csv(here::here('output', 'SpermiesFinal_20200531.csv'))
+sw$UTC = mdy_hms(sw$UTC, truncated = 2)
+
+
+#NOW all types of encounters can have env data extracted simultaneously.
+#set up for location estimates from localized data
+lon = sw$lon  #xcoord
+# lon = lon[!is.na(lon)]
+lat=sw$lat    #ycoord
+# lat = lat[!is.na(lat)]
+dates=sw$UTC  #tcoord
+# dates = dates[!is.na(dates)]
+
+
+#set up for trackline locations for localized encs
+
+sw=filter(sw, loc == 1)
+lon = sw$lon_trk
+lat = sw$lat_trk
+dates=sw$UTC  
+
+sw2=filter(sw, loc == 1)
+sw2 <- select(sw2, ID, loc, lon_trk, lat_trk)
+
+write.csv(sw2, here::here('data', 'Spermies_localized.csv'), row.names = F)
+```
+
+Load centroid data from gridding
+```{r}
+sw <- readRDS(here::here('output', 'centroids1604_10km.rda'))
+
+lon = sw$lon
+lat = sw$lat
+dates = sw$UTC
+
+```
+
+
+# 2. SST
+```{r }
+
+#SST Monthly Aqua MODIS (masked), 2003-present, 180/-180: -> USING THIS DATASET, NO NAs. 
+
+#Uses the url for the csv file from the erddap data access form.
+#Example url: 
+# https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
+# https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(2019-10-16T00:00:00Z):1:(2019-10-16T00:00:00Z)][(89.97916):1:(-89.97918)][(-179.9792):1:(179.9792)]
+
+#Longitude -180 180
+ptm<-proc.time()
+sst=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstdmday.csv?sst[(",dates[i],"):1:(",dates[i],")][(", 
+        lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    sst=rbind(sst,new)
+}
+
+
+sst=sst[-1,]
+names(sst) = c("date", "matched_lat", "matched_lon", "sstAQm")
+proc.time()-ptm
+
+
+require("rerddap")
+require("rerddapXtracto")
+
+
+ptm<-proc.time()
+# APDRC ERDDAP server
+urlBase = "https://coastwatch.pfeg.noaa.gov/erddap/"
+
+# wave height
+parameter = "sst"
+sstInfo = rerddap::info('erdMH1sstdmday', url = urlBase)
+sst_xt = rxtracto(sstInfo, parameter = parameter, xcoord = lon, ycoord = lat, tcoord = dates, progress_bar = TRUE)
+# sst_xt
+
+proc.time()-ptm
+
+sstxt_output = as.data.frame(cbind(sst_xt$`satellite date`, lon, lat, sst_xt$`mean sst`))
+colnames(sstxt_output) = c("date", "lat", "lon", "sst_m")
+
+```
+
+
+# 3. Chlorophyll
+```{r}
+
+#http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_69ee_7d0d_74e6.csv?chlor_a[(2020-02-01T00:00:00Z):1:(2020-02-01T00:00:00Z)][(-89.9792):1:(89.97913477299998)][(-179.97917):1:(179.97916621300004)]
+
+#Monthly 4km Chla. 
+#Long= -180 180
+ptm<-proc.time()
+chla_mon=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_69ee_7d0d_74e6.csv?chlor_a[(",dates[i],"):1:(",dates[i],")][(",lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    
+    new = read.csv(url, skip = 2, header = FALSE)
+    chla_mon=rbind(chla_mon,new)
+    
+}
+chla_mon=chla_mon[-1,]
+names(chla_mon) = c("date", "matched_lat", "matched_lon", "matched_chla_mon")
+proc.time()-ptm
+
+
+ptm<-proc.time()
+# APDRC ERDDAP server
+urlBase = "http://apdrc.soest.hawaii.edu/erddap/"
+
+# wave height
+parameter = "chlor_a"
+chlaInfo = rerddap::info('hawaii_soest_69ee_7d0d_74e6', url = urlBase)
+chla_xt = rxtracto(chlaInfo, parameter = parameter, xcoord = lon, ycoord = lat, tcoord = dates, progress_bar = TRUE)
+# sst_xt
+
+proc.time()-ptm
+
+chlaxt_output = cbind(chla_xt$`satellite date`, chla_xt$`requested lon min`, chla_xt$`requested lat min`, chla_xt$`mean chlor_a`)
+colnames(chlaxt_output) = c("date", "lon", "lat", "chla_m")
+
+
+```
+
+
+# 4. Wind
+```{r}
+wind_ascat=rep(NA,4)
+for (i in 1:length(lon)) {
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_a6ab_91f7_b38f.csv?wsp[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    wind_ascat=rbind(wind_ascat,new)
+}
+
+wind_ascat=wind_ascat[-1,]
+names(wind_ascat) = c("date", "matched_lat", "matched_lon", "wsp")
+```
+
+
+# 5. GODAS-Temperature at depths 100m & 500m, Kelvin
+
+As of June 2020, only using temp at 600m since they are correlated.
+This is a little awkward in that there are 3 different depths that should loop through each depth and saved accordingly. I set it up brute forcefully...
+```{r}
+#Long= 0 360
+lon=sw$lon_trk2
+
+#choose a depth for dep (100, 500, 600)
+dep = 600
+godas = paste0('godas', dep)
+
+
+godas=rep(NA,4)
+for (i in 1:length(lon)) {
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_d346_28ac_fccf.csv?potdsl[(",dates[i],"):1:(",dates[i],")][(",dep,"):1:(",dep,")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    new[5]=new[5]-273.15  #convert K to Celsius
+    godas=rbind(godas,new)
+}
+godas=godas[-1,]
+names(godas) = c("date", "depth", "matched_lat", "matched_lon", paste0("potempK", dep))
+
+godas100 <- godas
+godas500 <- godas
+godas600 <- godas
+
+```
+
+
+# 6. SSH - Sea Surface height (GODAS)
+```{r}
+
+ssh = rep(NA,4)
+for (i in 1:length(lon)) {
+ 
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_2ee3_0bfa_a8d6.csv?sshgsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    # new[4]=new[4]-273.15
+    ssh=rbind(ssh,new)
+}
+ssh=ssh[-1,]
+names(ssh) = c("date", "matched_lat", "matched_lon", "ssh")
+```
+
+
+# 7. Wave power (WaveWatch 3)
+```{r}
+ww3 = rep(NA,6)
+for (i in 1:length(lon)) {
+    url = paste("http://apdrc.soest.hawaii.edu/erddap/griddap/hawaii_soest_98bb_253a_eb1c.csv?htsgwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")],perpwsfc[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    
+    ww3=rbind(ww3, new)
+}
+
+ww3=ww3[-1,]
+names(ww3) = c("date", "matched_lat", "matched_lon", "whght", "wtime")
+
+ww3$wavepow2 = ((1024*(9.8^2))/(64*pi))*ww3$whght^2*ww3$wtime
+```
+
+
+# 8. PAR
+```{r}
+par_m=rep(NA,4)
+for (i in 1:length(lon)) {
+  # dates[i]
+    #print(paste("i=", i, " n=", length(lon)))
+    url = paste("https://oceanwatch.pifsc.noaa.gov/erddap/griddap/aqua_par_monthly_2018_0.csv?par[(",dates[i],"):1:(",dates[i],")][(", lat[i], "):1:(", lat[i], ")][(", lon[i], "):1:(", lon[i], ")]", sep = "")
+    new = read.csv(url, skip = 2, header = FALSE)
+    par_m=rbind(par_m,new)
+}
+par_m=par_m[-1,]
+names(par_m) = c("date", "matched_lat", "matched_lon", "par_m")
+```
+
+
+# 9. Bathymetry
+Data set from https://topex.ucsd.edu/WWW_html/srtm15_plus.html
+"SRTM15+V2.nc"
+```{r}
+wd = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data'
+
+# retrieve a list of nc files the folder. Bathymetry is from "SRTM15+V2.nc"
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+
+# Open a connection to the correct nc file in the list
+ncname = paste0(here::here('data'), '/', flist[11])
+
+
+# TAKE A SLICE OF THE DATA BASED ON LOCATION OF INTEREST ----> hyper_tibble selects the depth variable, z, to orient the locations
+
+#Hawaii EEZ boundaries. Split up longitude since crosses dateline, boo.
+lonrange1 = c(-151, -179)
+lonrange2 = c(180, 177)
+latrange = c(15, 32)
+
+# Take slices of nc file covering both longitude ranges
+bathy_slice <- flist[11] %>% hyper_filter(lon = lon <= lonrange1[1] & lon >= lonrange[2], 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+bathy_slice2 <- flist[11] %>% hyper_filter(lon = lon <= lonrange2[1] & lon >= lonrange2[2], 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('z'))
+
+
+#combine all slices  
+bathy_tot <- rbind(bathy_slice, bathy_slice2)
+```
+
+#Load Bathy data
+```{r}
+
+#find the bathy data closest to each whale location/grid midpoint
+#longitude -180-180
+lon=sw$lon
+
+bathy_tot <- readRDS(here('data', 'bathy_tot.rda'))  #can also name it something different if needed
+
+bath_match = list()
+
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(bathy_tot$lon-lon[i]) == min(abs(bathy_tot$lon-lon[i])) & 
+                    abs(bathy_tot$lat-sw$lat[i]) == min(abs(bathy_tot$lat-sw$lat[i])))
+  btmp <- bathy_tot$z[lontmp[1]] #some had duplicates, so take the first one
+  bath_match <- append(bath_match, btmp)
+}
+
+
+
+#bathymetry data
+bathdat = do.call(rbind.data.frame, bath_match)
+colnames(bathdat) = 'bath'
+
+
+```
+
+# 10. Slope and Aspect
+Requires converting the bathymetry nc file into a raster using functions from raster package.
+The terrain function calculates the slope and aspect once it is in raster format.
+
+```{r}
+
+#makes RasterBrick with only info for parameters, but does not include data
+b <-brick(ncname, varname = "z")  
+
+#makes RasterLayer containing the data
+b2 <- b[[1]]  
+
+# Again, need to deal with crossing the dateline, boo.
+hi1 <- crop(b2, extent(-180,-151, 15, 32))
+hi2 <- crop(b2, extent(177, 180, 15, 32))
+
+# calculate slope & aspect for both longitude ranges
+slope_asp1 <- terrain(hi1, opt= c('slope', 'aspect'), unit='degrees', neighbors=8)
+slope_asp2 <- terrain(hi2, opt= c('slope', 'aspect'), unit='degrees', neighbors=8)
+
+#merge slope_asp bricks into one brick.
+names(x) <- c("x", "y")
+x$overwrite <- TRUE
+slope_aspHI <- do.call(merge, x)
+
+
+#convert brick to dataframe to work with 'more easily'. 
+slope_aspdf <- rasterToPoints(slope_aspHI)
+colnames(slope_aspdf) <- c('lon', 'lat', 'slope', 'aspect')
+
+slope_aspdf2 <- as.data.frame(slope_aspdf)
+```
+
+#Load slope and aspect data
+```{r}
+#find best match to whale locations (sw) or grid midpoints
+
+#lon -180-180
+lon=sw$lon
+
+#load slope and aspect data
+slope_aspdf2 <- readRDS(here('data', 'slope_aspHIdf.rda'))  #can also name it something different if needed
+slope_aspdf2 <- as.data.frame(slope_aspdf2)
+
+
+
+#for Localized data
+slp_asp_match = list()
+for (i in 1:nrow(sw)){
+
+  lontmp <- which(abs(slope_aspdf2$lon-lon[i]) == min(abs(slope_aspdf2$lon-lon[i])) &
+                    abs(slope_aspdf2$lat-lat[i]) == min(abs(slope_aspdf2$lat-lat[i])))
+
+  tmp <- slope_aspdf2[lontmp[1],]
+
+  slp_asp_match <- rbind(slp_asp_match, tmp)
+
+}
+
+```
+
+
+# 11. Distance to Land 
+Data set from http://www.soest.hawaii.edu/pwessel/gshhg/
+Also uses nc file located at the VERY BOTTOM of the webpage, so far at the bottom that it's super easy to miss.
+"dist_to_GSHHG_v2.3.7_1m.nc" 
+
+```{r}
+#Use 0-360 for lon
+lon=sw$lon2
+# retrieve a list of nc files in my data folder:
+flist <- list.files(path = 'C:\\Users\\yvers\\Documents\\CHP 3/SpermWhales/data', pattern = "^.*\\.(nc|NC|Nc|Nc)$")
+
+# Open a connection to the first file in our list
+ncname = paste0(here::here('data'), '/', flist[4])
+
+# TAKE A SLICE OF THE DATA BASED ON LOCATION OF INTEREST ----> hyper_tibble selects the depth variable, z, to orient the locations
+
+# Data includes 0-360 longitude, hooray! Easier to deal with dateline.
+lonrange = c(177, 209)
+latrange = c(15, 32)
+
+# Take slice of nc file covering longitude ranges
+dist_slice <- ncname %>% hyper_filter(lon = lon <= lonrange[2] & lon >= lonrange[1], 
+                       lat = lat >= latrange[1] & lat <= latrange[2]) %>% hyper_tibble(select_var = c('dist'))
+
+
+# Find values of dist2land closest to whales or gridpoints
+
+dist2land_match = list()
+
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(dist_slice$lon-lon[i]) == min(abs(dist_slice$lon-lon[i])) & 
+                    abs(dist_slice$lat-lat[i]) == min(abs(dist_slice$lat-lat[i])))
+  dtmp <- dist_slice$dist[lontmp[1]] #some had duplicates, so take the first one
+  dist2land_match <- append(dist2land_match, dtmp)
+}
+
+dist2land = do.call(rbind.data.frame, dist2land_match)
+colnames(dist2land) = 'dist2land'
+
+
+```
+
+
+# Save Static Data of All Kinds
+Since these files are large and take time to produce, save them as Rdata to make life easier later.
+```{r}
+# save bathy data for loading later if needed
+saveRDS(bathy_tot, file = paste0(here::here('data'), '/', 'bathy_tot.rda'))
+
+saveRDS(slope_aspHI, file = paste0(here::here('data'), '/','slope_aspHI.rda')) 
+saveRDS(slope_aspdf, file = paste0(here::here('data'), '/','slope_aspHIdf.rda'))
+
+saveRDS(dist_slice, file = paste0(here::here('data'), '/','dist2land.rda'))
+
+```
+
+#12. SSH, SSHsd, EKE
+More details are in '4_PmSSHEKE.rmd', but now don't have to switch over to it.
+```{r}
+sshtidya <-readRDS(here::here('data', 'ssh_tidy.rda'))
+
+ssh_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(sshtidya$lon-lon[i]) == min(abs(sshtidya$lon-lon[i])) & 
+                    abs(sshtidya$lat-lat[i]) == min(abs(sshtidya$lat-lat[i])) &
+                    abs(sshtidya$date-dates[i]) == min(abs(sshtidya$date-dates[i])))
+  sshtmp <- sshtidya[lontmp[1],] #some had duplicates, so take the first one
+  ssh_match <- rbind(ssh_match, sshtmp)
+}
+```
+
+
+#13. SSHsd
+```{r}
+sshZtidya<-readRDS(here::here('data', 'sshsd_tidy.rda'))
+
+sshsd_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(sshZtidya$lon-lon[i]) == min(abs(sshZtidya$lon-lon[i])) & 
+                    abs(sshZtidya$lat-lat[i]) == min(abs(sshZtidya$lat-lat[i])) &
+                    abs(sshZtidya$date-dates[i]) == min(abs(sshZtidya$date-dates[i])))
+  sshsdtmp <- sshZtidya[lontmp[1],] #some had duplicates, so take the first one
+  sshsd_match <- rbind(sshsd_match, sshsdtmp)
+}
+```
+
+#14. EKE
+```{r}
+ekeZtidya<-readRDS(here::here('data', 'eke_tidy.rda'))
+
+eke_match = list()
+for (i in 1:nrow(sw)){
+ 
+  lontmp <- which(abs(ekeZtidya$lon-lon[i]) == min(abs(ekeZtidya$lon-lon[i])) & 
+                    abs(ekeZtidya$lat-lat[i]) == min(abs(ekeZtidya$lat-lat[i])) &
+                    abs(ekeZtidya$date-dates[i]) == min(abs(ekeZtidya$date-dates[i])))
+  eketmp <- ekeZtidya[lontmp[1],] #some had duplicates, so take the first one
+  eke_match <- rbind(eke_match, eketmp)
+}
+```
+
+# Distance to Seamount 
+Data derived from 'seamounts.R'
+```{r}
+seamounts_HI <- readRDS(here::here('data', 'seamounts_tot.rda'))
+sw_smtsTEST <- read_csv(here::here('data', 'Spermies_loc_SEAMOUNTS.csv'))  #using to compare these dists with EF's distances
+
+sw$lon2 = ifelse(sw$lon >180, sw$lon - 360, sw$lon) 
+
+sw_smts <- cbind(sw$lon2, sw$lat, sw$effCells)
+sw_smts <- cbind(sw_smtsTEST$lon, sw_smtsTEST$lat)
+
+
+# fake_noisy_whale_places <- rbind(c(-158, 22), c(-160, 25), c(-154, 17))
+fake_noisy_whale_places <- head(sw_smts, 100)
+
+#################################
+## Initiate Cluster
+#################################
+require(parallel)
+require(doParallel)
+
+cl = makeCluster(detectCores())
+registerDoParallel(cl, cores = detectCores())
+
+
+#######################################
+##The foreach function is the loop function for parallel processing. 
+##It uses %dopar% which partitions the loop among your cores, then combines each output using the .combine argument. 
+ptm = proc.time()
+
+smt_test = foreach(i = 1:nrow(fake_noisy_whale_places), .combine = rbind) %dopar% { 
+  
+    smt_temp = data.frame(geosphere::dist2Line(p = fake_noisy_whale_places[i,1:2], line = seamounts_HI))
+    # smt_temp$effCells[i] = sw$effCells[i]
+  }
+
+proc.time()-ptm
+#so, for each of the parameter combinations, i.e., rows of the tune_settings df, the RF is run using those 
+#settings (line 46) and the error rates for the 3 pop's and the oob are printed (line 47). 
+#when all the rows are finished, the results are combined using the rbind function into one matrix, stored as x.
+
+#NB: .combine can be anything, really, for example .combine = c for a vector, .combine = list for a list, etc.
+
+#################################
+## Stop Cluster
+#################################
+stopCluster(cl)
+
+########################################
+## Combine settings and results
+########################################
+dist2smt = cbind(smt_test, `effCells`= fake_noisy_whale_places[,3]) #add effCells
+
+system.time(
+dist2smt.mat <- geosphere::dist2Line(p    = fake_noisy_whale_places, 
+                                 line = seamounts_HI)
+)
+#From EF prior to Brett's help
+# smt <- read_csv(here::here('data', 'SpermiesWithSeamounts.csv'))
+# smt <- dplyr::select(smt, d2seam_m)
+# smt <- smt/1000 #convert to km
+# SwEnvData <- cbind(SwEnvData, smt)
+# SwEnvData <- SwEnvData[, c(1:36, 41, 37:40, 42)]
+# colnames(SwEnvData)[colnames(SwEnvData) %in% c('d2seam_m')] <- 'd2smt_km'
+
+##Comparing EF's dists with R dists -> THEY ARE THE SAME, YAY! JULY 20, 2020
+# swpoop <- sw_smtsTEST[1:100,]
+# 
+# swpoop2 <- data.frame(swpoop$lon, swpoop$lat, swpoop$d2seam_m, smt_test$distance) 
+
+
+```
+
+
+# Combine Env Data with Sperm Whale/Grid Locations
+This step will be modified to work with the grid space.
+```{r}
+
+#combine SW data and env data  
+## !!!!!! ssh, sshsd, and eke are from 4_PmSSHEKE.rmd !!!!!!!!!!!!!!
+SwEnvData <- as_tibble(cbind(sw, 'sstAQ_m' = sst$sstAQm, 
+                             'temp100C' = godas100$potempK100, 
+                             'temp500C' = godas500$potempK500, 
+                             'temp600C' = godas600$potempK600, 
+                             'chla_m' = chla_mon$matched_chla_mon, 
+                             'par_m' = par_m$par_m, 
+                             'bath' = bathdat, 
+                             'slp_deg' = slp_asp_match$slope, 
+                             'asp_deg' = slp_asp_match$aspect, 
+                             'd2land_km' = dist2land$dist2land, 
+                             'wind_ms' = wind_ascat$wsp, 
+                             'wavepow' = ww3$wavepow,
+                             'ssh' = ssh_match$ssh,
+                             'sshsd' = sshsd_match$sshsd,
+                             'd2smt' = smt,
+                             'eke' = eke_match$eke))
+
+
+SwEnvData<-filter(SwEnvData, ID != '1705_112_999' | peak !='A' , ID != '1706_49_999' | peak != 'A')
+write.csv(SwEnvData, here::here('output', 'SpermiesWithEnvData_20200531.csv'), row.names = F)
+
+
+#5/31/20 had to add in the click data, got dropped somewhere before this
+# SwEnvData$peak <- sw_new$peak
+# SwEnvData$itrk <- sw_new$itrk
+# SwEnvData$nclk <- sw_new$nclk
+# SwEnvData$minutes <- sw_new$minutes
+# SwEnvData$seconds <- sw_new$seconds
+# SwEnvData$cpm <- sw_new$cpm
+# SwEnvData$cps <- sw_new$cps
+
+
+smt2 <- read.csv(here::here('data', 'Spermies_localized_Seamounts4TrackLocs.csv'))
+smt2 <- smt2$d2_seam_m/1000
+SwEnvDataLocTrk$d2smt_km <- smt2
+SwEnvDataLocTrk <- SwEnvDataLocTrk[, c(1:36, 42, 37:41)]
+
+write.csv(SwEnvDataLocTrk, here::here('output', 'SpermiesWithEnvDataLocTrk_20200531.csv'), row.names = F)
+```
+
+
+#Scale data
+```{r}
+# SCALE and CENTER PREDICTORS
+
+SwEnvData_pred <- dplyr::select(SwEnvData, sstAQ_m:eke)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+SwEnvData_scale <- cbind(dplyr::select(SwEnvData, ID:lon_trk2), SwEnvData_scale)
+write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataALL_20200527-scaled.csv'), row.names = F)
+
+#scale the trackline location data of the localized encounters
+# SwEnvDataLocTrk was made using the lat_trk and lon_trk as the locations for the env data from the localized encs to compare with localised peaks A & B
+SwEnvDataLocTrk_pred <- dplyr::select(SwEnvDataLocTrk, sstAQ_m:eke)
+SwEnvDataLocTrk_sc <- scale(SwEnvDataLocTrk_pred, scale = TRUE)
+SwEnvDataLocTrk_sc <- cbind(dplyr::select(SwEnvDataLocTrk, ID:lon_trk2), SwEnvDataLocTrk_sc)
+write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvDataLocTrk_20200527-scaled.csv'), row.names = F)
+
+
+
+```
+
+
+
+
+
+#Scale and center predictors
+```{r}
+
+#load data set
+dir = 'C:\\Users\\yvers\\Documents\\CHP 3\\SpermWhales\\output/'
+SwEnvData_tot <- read.csv(paste0(dir, 'SpermiesWithEnvData_20200531.csv'))
+
+# center and scale predictors
+SwEnvData_pred <- select(SwEnvData_tot, lat, lon2, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+SwEnvData_scale <- cbind(select(SwEnvData_tot, ID:type, pdist), SwEnvData_scale)
+write.csv(SwEnvData_scale, here::here('output', 'SpermiesWithEnvData_20200326-scaled.csv'), row.names = F)
+
+#for unlocalized and sighted data from above
+SwEnvData_pred <- dplyr::select(SwEnvData, lat_trk, lon2, sstAQ_m:wavepow)
+SwEnvData_scale <- scale(SwEnvData_pred, scale = TRUE)
+
+
+
+
+
+# OR center data with 'colMeans()', from https://www.gastonsanchez.com/visually-enforced/how-to/2014/01/15/Center-data-in-R/
+
+#mean-centering function
+# center_colmeans <- function(x) {
+#   xcenter = colMeans(x)
+#   x - rep(xcenter, rep.int(nrow(x), ncol(x)))
+# }
+
+# SwEnvData_cent <- center_colmeans(SwEnvData_pred)
+# SwEnvData_cent <- cbind(select(SwEnvData_tot, ID:type, pdist), SwEnvData_cent)
+```
+
+
+
+

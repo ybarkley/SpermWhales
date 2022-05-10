@@ -6,6 +6,10 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
+
+This is mostly for summarizing the data after implementing the new 16km-grid.
+FIG 3 Barplot is made here using 'fig3' dataframe.
+
 ```{r}
 library(tidyverse)
 library(lattice)
@@ -148,7 +152,7 @@ saveRDS(PmCombo, here::here(paste0('data/Pm_Combined_2022.rda')))
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
+# FIGURE 3 BARPLOT
 ## Use PmCombo to tally up the different encounters for each survey
 
 ```{r}
@@ -183,31 +187,42 @@ PmTally2 <- select(Pm_uniq, year, name, forage)
 #make long format??
 PmTallyLong <- pivot_longer(Pm_uniq, cols= name)#c(forage, name))
 
-d3 <-aggregate(x = PmTallyLong$pa,                # Specify data column
+fig3 <-aggregate(x = PmTallyLong$pa,                # Specify data column
           by = list(PmTallyLong$year,PmTallyLong$value, PmTallyLong$forage),              # Specify group indicator
           FUN = sum)
-colnames(d3) <- c('year', 'type', 'forage', 'total')
+colnames(fig3) <- c('year', 'type', 'forage', 'total')
+
+table5 <-aggregate(x = PmTallyLong$pa,                # Specify data column
+          by = list(PmTallyLong$value),              # Specify group indicator
+          FUN = sum)
+colnames(fig3) <- c('year', 'type', 'forage', 'total')
+
+
 
 require(viridis)
 
 vir_pal <- viridis_pal(option = 'A')(20)
 
-par(mar(c(1,3,3,5)))
 
-ggplot(d3, aes(x=type, y=total, fill=forage)) + 
+png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Fig3_BarPlot.png", width = 175, height = 120, res = 300, units = "mm") # 8x6"
+
+# pdf(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Fig3_BarPlot.pdf", width = 6.6, height = 4.7)
+
+ggplot(fig3, aes(x=type, y=total, fill=forage)) + 
   geom_bar(stat="identity") + 
   facet_grid(~year) +
   theme_bw() +
-   scale_fill_manual(values = c('#3b0f70','#f7705c', '#3b0f70'), name = "") +
+   scale_fill_manual(values = c('#3b0f70','#f7705c'), name = "") + # '#3b0f70' use if 3 fills needed
   theme(axis.text.x = element_text(angle = 86, hjust = 1),
         strip.text.x = element_text(size = 18),
-        axis.text = element_text(size=12),
-        legend.text = element_text(size= 12),
+        axis.text = element_text(size=12, colour = 'black'),
+        legend.text = element_text(size= 10),
         # legend.position = 'top',
-        axis.title = element_text(size=14)) +
-  labs(x='Encounter Type', y = 'Total Encounters')
+        axis.title.x = element_text(size=14, margin = unit(c(4,0,0,0), 'mm')),
+        axis.title.y = element_text(size=14, margin = unit(c(0,4,0,0), 'mm'))) +
+  labs(x='Encounter Type', y = 'Total Groups')
   
-  
+dev.off()  
 
 # ggplot(d3, aes(x=as.factor(year), y=total, fill=type)) + 
 #   geom_bar(stat="identity", position = position_dodge()) +
@@ -220,16 +235,54 @@ ggplot(d3, aes(x=type, y=total, fill=forage)) +
 
 
 
-d2 <-aggregate(x = PmTally$pa,                # Specify data column
-          by = list(PmTally$year,PmTally$name, PmTally$forage),              # Specify group indicator
-          FUN = sum)
-colnames(d2) <- c('year', 'type', 'forage', 'total')
+```
 
-ggplot(d2, aes(x=as.factor(year), y=total, fill=type)) + 
-  geom_bar(stat="identity", position=position_dodge()) +
-  theme_bw()
+
+#Fig XX
+New plot to show types of clicks in the different encounter types
+```{r}
+Pm_uniq$click_code2 <- str_replace_all(Pm_uniq$click_code, "r|ck", "f")
+Pm_uniq$click_code2 <- str_replace_all(Pm_uniq$click_code2, "ff", "f")
+
+
+PmTallyLong2 <- Pm_uniq %>% select(pa, ID, forage, name, click_code2) %>%
+  pivot_longer(cols = name)
+
+figX <-aggregate(x = PmTallyLong2$pa,                # Specify data column
+          by = list(PmTallyLong2$forage,PmTallyLong2$value, PmTallyLong2$click_code2),              # Specify group indicator
+          FUN = sum)
+colnames(figX) <- c('forage', 'type', 'click_code2', 'total')
+
+require(viridis)
+
+vir_pal <- viridis_pal(option = 'A')(10)
+vir_pal2 <- c(vir_pal[c(2:4, 6, 7)], "#FEC98DFF" ,"#FCFDBFFF", "#FEAF77FF")
+
+png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/FigX_BarPlot_clickcode.png", width = 175, height = 120, res = 300, units = "mm") # 8x6"
+
+# pdf(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Fig3_BarPlot.pdf", width = 6.6, height = 4.7)
+
+ggplot(figX, aes(x=forage, y=total, fill=click_code2)) + 
+  geom_bar(stat="identity") + 
+  facet_grid(~type) +
+  theme_bw() +
+   scale_fill_manual(values = vir_pal2, name = "Click Types",
+                     labels=c("codas", "codas/forage", "codas/forage/slow","codas/slow","forage", "forage/slow", "slow")) + # '#3b0f70' use if 3 fills needed
+  theme(axis.text.x = element_text(angle = 86, hjust = 1),
+        strip.text.x = element_text(size = 16),
+        axis.text = element_text(size=12, colour = 'black'),
+        legend.text = element_text(size= 10),
+        # legend.position = 'top',
+        axis.title.x = element_text(size=14, margin = unit(c(0,0,0,0), 'mm')),
+        axis.title.y = element_text(size=14, margin = unit(c(0,4,0,0), 'mm'))) +
+  labs(x='', y = 'Total Groups')
+  
+dev.off()  
+
 
 ```
+
+
 
 
 

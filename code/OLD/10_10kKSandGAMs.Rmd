@@ -1,0 +1,314 @@
+---
+title: "GAMs for 10km data"
+author: "Yvonne Barkley"
+date: "9/21/2020"
+output: html_document
+---
+
+
+Load libraries
+```{r,eval=FALSE,echo=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+```
+
+```{r}
+gridsize = 10
+loctype = 'allsw'
+loctype2 = 'all'
+# loctype = 'trackline'
+# loctype2 = 'trk'
+
+PmScaled <- readRDS(here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+PmRaw <- readRDS(here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_raw.rda') ))
+
+CompletePreds <- dplyr::select(PmRaw, sst:d2smt)
+# PmScaled <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledNEW.rda')))
+
+
+###testing things with DUMMY data
+# PmScaledOLD <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledOLD.rda')))
+
+#add column for log effort as offset
+PmScaled$log.effort	= log(PmScaled$EffArea)
+PmScaled$pa2 = ifelse(PmScaled$pa >1, PmScaled$pa2 == 1, PmScaled$pa)
+PmRaw$log.effort	= log(PmRaw$EffArea)
+PmRaw$d2smt = PmRaw$d2smt/1000
+PmRaw$pa2 = ifelse(PmRaw$pa >1, PmRaw$pa2 == 1, PmRaw$pa)
+
+
+saveRDS(PmScaled, here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled2.rda') ))
+
+nrow(filter(PmScaled, pa > 0)) #how many presences? was 118, then 147 for 25km since >1 whale in a cell, now should be 159
+
+# pairs(PmScaled[,15:26])
+```
+
+Check correlation of covariates
+```{r, echo=FALSE, eval=FALSE}
+corrplot.mixed(cor(PmScaled[,18:29]), upper="number", lower="circle")
+
+```
+
+Plot the data, see what's happening
+```{r,eval=FALSE}
+# par(mfrow = c(1,1))
+# with(CompleteTotal, plot(pa~bath_m))
+require(Cairo)
+require(ggplot2)
+source('./code/multiplot.r') 
+
+ 
+loopVec <- 18:29  #columns from PmScaled to plot
+ 
+# par(mfrow = c(1, 3), mar=c(3,3,1,1), oma=c(0,0,3,1))
+ 
+for (j in loopVec){
+   #use original values for plots with PmRaw
+   datPlot <- PmScaled[,c(1,j)]  #get dataframe of pa and variable j
+   datPlot$bin <- 0
+   datPlot$bin <- ifelse(datPlot$pa >0 , 1, 0) #put 1s in color col for plotting later
+   datPlot <- select(datPlot, bin, 2, pa)
+    #normal plot
+   # plot(datPlot[,2], datPlot[,1], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'whales per cell')
+   
+
+   ptplt <-  ggplot(datPlot, aes(datPlot[,2],datPlot[,1], colour=as.factor(datPlot[,1]))) +
+       geom_point() +   
+     theme(legend.position ="none") +
+       xlab(paste(colnames(datPlot)[2], 'scaled' )) +
+       ylab('whales per cell')+
+       # scale_colour_discrete(name='',labels = c('Whales Absent', 'Whales Present'))+
+theme_bw() +
+  guides(colour=FALSE)
+   
+   #histogram
+   # hist(datPlot[,2], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'frequency', main='' )
+   
+   histplt <- ggplot(datPlot, aes(datPlot[,2], fill=as.factor(datPlot[,1]))) +
+     geom_histogram(colour='black', binwidth = 0.5) +
+    xlab(paste(colnames(datPlot)[2],'scaled' )) +
+    ylab('Frequency') +
+     scale_fill_discrete(name = '', labels = c('Whales Absent', 'Whales Present'))+
+     theme_bw() +
+     theme(legend.position ="top",
+           legend.text=element_text(size=16)) 
+
+   
+   #do KS test and plot
+   datPlot1 <- filter(datPlot, pa >0)
+   datPlot0 <- filter(datPlot, pa ==0)
+
+   datKS <- ks.test(datPlot1[,2], datPlot0[, 2])
+     cdf0 <- ecdf(datPlot0[,2]); cdf1 <- ecdf(datPlot1[,2]) #make cdfs for the absences and whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(datPlot0[,2], datPlot1[,2]), max(datPlot0[,2], datPlot1[,2]), length.out=length(datPlot0[,2])) 
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0)
+   
+  ksplt <- ggplot(datPlot, aes(x = datPlot[,2], group = datPlot[,1], color = as.factor(datPlot[,1]))) + #
+  stat_ecdf(size=1) +
+    theme_bw() +
+    theme(legend.position ="none", plot.title = element_text(hjust= 0.5)) +
+    xlab(paste(colnames(datPlot)[2],'scaled') ) +
+    ylab("ECDF") +
+    #geom_line(size=1) +
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+        linetype = "dashed", color = "red") +
+    geom_point(aes(x = x0[1] , y= y0[1]), color="red", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="red", size=2) +
+    ggtitle("K-S Test") +
+    # theme(legend.title=element_blank()) +
+     scale_colour_discrete(name = 'Distribution Type', labels = c('Whales Absent', 'Whales Present'))+
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.1, hjust=.2,label=paste('D=',round(datKS[1]$statistic,2))) +
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.05, hjust=.2,label=paste('p=',round(datKS$p.value,3)))
+
+Cairo(here::here('figures', paste0('DataPlotsScaled_', gridsize, 'km_', loctype,'_', colnames(datPlot)[2], '.png')), width=14,height=6,
+    units='in', dpi=300, bg='white')
+  multiplot(ptplt, histplt, ksplt, cols=3)
+ dev.off()
+  
+   # ggsave(paste('DataPlots_',colnames(datPlot)[2],'.png'))
+  
+  }
+
+```
+##More plots
+```{r}
+
+ histT600 <- ggplot(PmRaw, aes(temp600, fill=as.factor(pa))) +
+     geom_histogram(colour='black', binwidth = 0.5) +
+    xlab(paste(colnames(datPlot)[2],'scaled' )) +
+    ylab('Frequency') +
+     scale_fill_discrete(name = 'Number of Whale Groups') + # labels = c('Whales Absent', 'Whales Present'))+
+     theme_bw() +
+     theme(legend.position ="top",
+           legend.text=element_text(size=16)) 
+
+
+```
+
+
+##10km - Binomial
+
+No knot contrain
+```{r, eval=FALSE}
+# colnames(PmScaled)
+
+#treat as count data using Tweedie?
+tw10 <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = tw)
+summary(tw10)
+
+par(mar=c(4,4,3,3), mfrow=c(3,3))
+plot(tw10, pages = 3, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'deepskyblue', ylim = c(-20, 10))
+
+gam.check(tw10)
+
+# tw25_p <- predict_gam(tw25)
+
+#treat as binary distribution with binomial 
+bin10 <- gam(pa2 ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = binomial, link='logit')
+summary(bin10)
+
+#treat as binary distribution with binomial 
+nb10 <- gam(pa2 ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = nb, link='log')
+summary(nb10)
+
+#treat as binary distribution with binomial 
+nb10raw <- gam(pa2 ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = nb, link='log')
+summary(nb10)
+gam.check(nb10)
+par(mar=c(4,4,3,3), mfrow=c(3,3))
+plot(nb10raw, pages = 3, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'orange', ylim = c(-20, 10))
+```
+
+Knots contrained to k=3
+Automatic term selection is uses an additional penalty term when determining the smoothness of the function.
+  We excluded all non-significant variables (alpha=0.05) and refit the models until all variables were significant.
+REML is restricted maximum likelihood used to optimize the parameter estimates.
+```{r}
+#Automatic term selection
+nb10k3sel <- gam(pa2 ~ s(bath_m, k=3) + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) +s(dist, k=3) + offset(log.effort), data = PmScaled, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nb10k3sel)
+par(mar=c(4,4,3,3), mfrow=c(2,2))
+gam.check(nb10k3sel)
+
+#testing without log.effort offset
+# tw10k3sel2 <- gam(pa ~ s(bath_m, k=3) + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) +s(dist, k=3), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
+
+#Used raw data for plotting purposes like a kook
+nb10k3selraw <- gam(pa2 ~ s(bath_m, k=3) + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) +s(dist, k=3) + offset(log.effort), data = PmRaw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nb10k3selraw) #just checking that these are the same so I can plot raw values
+
+par(mar=c(4,4,3,3), mfrow=c(3,3))
+plot(nb10k3selraw, pages = 3, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'deepskyblue', ylim = c(-20, 10))
+```
+
+Taking previous model with k=3, auto term selection and changing some variables from smoothers to linear parameters
+```{r}
+
+nb10k3selB <- gam(pa2 ~  sst + chla + s(temp600) + ssh + sshsd + d2smt + offset(log.effort), data = PmScaled, family = nb, link = 'log', select = TRUE, method = "REML")
+nb10k3selBraw <- gam(pa2 ~  sst + chla + s(temp600) + ssh + sshsd + d2smt + offset(log.effort), data = PmRaw, family = nb, link = 'log', select = TRUE, method = "REML")
+
+summary(nb10k3selB)
+gam.check(nb10k3selB)
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(nb10k3selBraw, pages = 1, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'darkseagreen2', all.terms = TRUE)
+
+#eke not significant, remove from model
+nb10k3selC <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort), data = PmScaled, family = nb, link = 'log', select = TRUE, method = "REML")
+nb10k3selCraw <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort), data = PmRaw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nb10k3selC)
+gam.check(nb10k3selC)
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(nb10k3selCraw, pages = 1, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'salmon1', all.terms = TRUE)
+
+#increase knots for wave power
+nb10k3selD <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=4) + s(d2smt, k=3) + dist + offset(log.effort), data = PmScaled, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nb10k3selD)
+gam.check(nb10k3selD)
+nb10k3selDraw <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=4) + s(d2smt, k=3) + dist + offset(log.effort), data = PmRaw, family = nb, link = 'log', select = TRUE, method = "REML")
+plot(nb10k3selDraw, pages = 1, residuals = TRUE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'royalblue1', all.terms = TRUE)
+
+#plot with all signif variables and add 2D smoother
+nb10k3selE <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort) + s(Longitude, Latitude), 
+        data = PmScaled, family = nb, link = 'log', select = TRUE, method = "REML")
+
+nb10k3selEraw <- gam(pa ~ bath_m + sst + chla + s(temp600) + s(wavepow, k=3) + s(d2smt, k=3) + dist + offset(log.effort) + s(Longitude, Latitude),    
+        data = PmRaw, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nb10k3selE)
+gam.check(nb10k3selE)
+
+par(mar=c(4,4,3,3), mfrow=c(3,3))
+plot(nb10k3selEraw, residuals = F, pch = 20, cex = 0.25,
+ shade = TRUE, shade.col = 'salmon1', all.terms=TRUE)
+
+# hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20)
+points()
+
+
+```
+
+What happens when a 2D lat/lon smoother is fit only?
+```{r}
+# require(SDraw) #doesn't work
+nb10kLL <- gam(pa2 ~ s(Longitude, Latitude), data = PmScaled, family = nb, link='log', select = TRUE, method = "REML")
+summary(nb10kLL)
+gam.check(nb10kLL)
+
+saveRDS(hawaiiMap, here::here(paste0('data/hawaiiMap..rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+
+whales <- filter(PmScaled, pa >0) #get points for whales to plot
+
+plot(nb10kLL, select = 1, scheme = 2, lwd = 2)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex=0.5, col = 'black')
+points(whales$Longitude, whales$Latitude, pch = 1, col='slateblue', lwd=2, cex=0.75)
+
+
+
+us<-readOGR(here::here( paste0("data/tl_2016_us_state.shp")))
+hawaii<-subset(us,NAME=="Hawaii")
+hawaiiMap<-fortify(hawaii)
+```
+
+
+###Variogram 
+*How similar are the residuals relative to their distance from each other in space?
+  This tests for autocorrelation. If nearby residuals are similar due to unmeasured env effects, for example, the variogram will show a pattern where there are lower values at lower distances and then an increase at farther distances. 
+```{r}
+#full model WITHOUT 2D smoother
+nb10k3selCvar <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(nb10k3selC, type = 'pearson'))
+plot(nb10k3selCvar, main='Variogram: Best Full Model, No 2D smoother')
+
+#full model WITH 2D smoother
+nb10k3selEvar <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(nb10k3selE, type = 'pearson'))
+plot(nb10k3selEvar, main='Variogram: Best Full Model, WITH 2D smoother')
+
+#full model WITH ONLY 2D smoother
+nb10kLLvar <- variog(coords = PmScaled[,c('Latitude','Longitude')],	data= residuals(nb10kLL, type = 'pearson'))
+plot(nb10kLLvar, main='Variogram: Best Full Model, WITH ONLY 2D smoother')
+
+
+```
+
+
+###Moran's I
+```{r}
+coords = cbind(PmScaled$Longitude, PmScaled$Latitude)
+w = fields:::rdist(coords)
+library(ape)
+Moran.I(x = PmScaled$pa, w = w)
+```

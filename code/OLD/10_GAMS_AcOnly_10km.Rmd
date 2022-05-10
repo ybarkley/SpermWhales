@@ -1,0 +1,626 @@
+---
+title: 'GAMs - Acoustics Only - 10 km '
+author: "Yvonne Barkley"
+date: "9/26/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+
+Load libraries
+```{r, echo=T, eval=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+```
+
+
+# Research question:
+## What environmental variables characterize sperm whale habitat? 
+## Hypothesis: Sperm whales are found in deep, productive offshore waters. 
+
+Load universal variables
+```{r}
+#Values used for file and directory names
+survey = 'AllSurveys'
+gridsize = 10
+loctype = 'AcOnly'
+loctype2 = 'Ac'
+
+```
+
+
+###Load data
+```{r}
+PmScaled <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+# add column for log effort as offset #
+PmScaled$log.effort	= log(PmScaled$EffArea)
+
+```
+```{r echo=FALSE}
+# PmScaled <- subset(PmScaled, chla <= 10)
+
+PmRaw <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_raw.rda') ))
+PmRaw$log.effort	= log(PmRaw$EffArea)
+PmRaw$d2smt = PmRaw$d2smt/1000 #for plotting purposes
+
+colnames(PmRaw)[c(18:29,44)] <- c('SST', 'chla', 'temp600m', 'wavepower', 'depth', 'slope', 'aspect', 'distland', 'SSH', 'SSHsd', 'EKE', 'distseamt', 'logeffort')
+
+# head(dplyr::arrange(PmScaled, desc(chla)))
+# PmScaled <- subset(PmScaled, chla <= 10)
+
+```
+
+```{r, echo=FALSE, eval=FALSE}
+#MISC CODE
+
+CompletePreds <- dplyr::select(PmRaw, sst:d2smt)
+# PmScaled <- readRDS(here::here(paste0('output/envData/', gridsize, ' km-', loctype), paste0('CompletePm_', gridsize, 'km_', loctype2, '_scaledNEW.rda')))
+
+PmRaw$log.effort	= log(PmRaw$EffArea)
+PmRaw$d2smt = PmRaw$d2smt/1000 #for plotting purposes
+
+#save if file again if needed
+# saveRDS(PmScaled, here::here( paste0('output/envData/complete env data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled2.rda') ))  
+
+# nrow(dplyr::filter(PmScaled, pa > 0)) #how many presences? was 118, now should be 147
+
+#rename columns for better plots LATER
+# colnames(PmScaled)[c(18:29,44)] <- c('SST', 'Chla', 'Temp600m', 'Wave Power', 'Depth', 'Slope', 'Aspect', 'Dist to Land', 'SSH', 'SSHsd', 'EKE', 'Dist to Seamt', 'Log Effort')
+
+```
+Check correlation of covariates
+```{r fig.width =10, fig.height = 6}
+require(corrplot)
+corrplot.mixed(cor(PmScaled[,18:29]), upper="number", lower="circle")
+
+# Are all correlation coefficients < |0.6|?
+abs(cor(PmScaled[,18:29])) <= 0.6
+
+```
+
+### KS tests 
+I compared the distributions of environmental data between the whales and the absences. 
+Plots are attached in separate powerpoint. In summary, temperature at 600 m, SSH, and chlorophyll were the only variables with significantly different distributions (p-value < 0.05). However, the D statistics were close to zero (D ~ 0.1) for each, indicating that although the distributions were different, they were not that far apart. The plots also show how similar the general shape of the distributions are between where the whales were observed and where they were not observed.
+```{r echo=FALSE, eval=FALSE}
+# par(mfrow = c(1,1))
+# with(CompleteTotal, plot(pa~bath_m))
+require(Cairo)
+require(ggplot2)
+source('./code/multiplot.r') 
+
+ 
+loopVec <- 18:29  #columns from PmScaled to plot
+ 
+par(mfrow = c(1, 3), mar=c(3,3,1,1), oma=c(0,0,3,1))
+ 
+for (j in loopVec){
+   #use original values for plots with PmRaw
+   datPlot <- PmScaled[,c(1,j)]  #get dataframe of pa and variable j
+   datPlot$bin <- 0
+   datPlot$bin <- ifelse(datPlot$pa >0 , 1, 0) #put 1s in color col for plotting later
+   datPlot <- select(datPlot, bin, 2, pa)
+    #normal plot
+   # plot(datPlot[,2], datPlot[,1], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'whales per cell')
+   
+
+   ptplt <-  ggplot(datPlot, aes(datPlot[,2],datPlot[,1], colour=as.factor(datPlot[,1]))) +
+       geom_point() +   
+     theme(legend.position ="none") +
+       xlab(paste(colnames(datPlot)[2], 'scaled' )) +
+       ylab('whales per cell')+
+       # scale_colour_discrete(name='',labels = c('Whales Absent', 'Whales Present'))+
+theme_bw() +
+  guides(colour=FALSE)
+   
+   #histogram
+   # hist(datPlot[,2], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'frequency', main='' )
+   
+   histplt <- ggplot(datPlot, aes(datPlot[,2], fill=as.factor(datPlot[,1]))) +
+     geom_histogram(colour='black', binwidth = 0.5) +
+    xlab(paste(colnames(datPlot)[2],'scaled' )) +
+    ylab('Frequency') +
+     scale_fill_discrete(name = '', labels = c('Whales Absent', 'Whales Present'))+
+     theme_bw() +
+     theme(legend.position ="top",
+           legend.text=element_text(size=16)) 
+
+   
+   #do KS test and plot
+   datPlot1 <- filter(datPlot, pa >0)
+   datPlot0 <- filter(datPlot, pa ==0)
+
+   datKS <- ks.test(datPlot1[,2], datPlot0[, 2])
+     cdf0 <- ecdf(datPlot0[,2]); cdf1 <- ecdf(datPlot1[,2]) #make cdfs for the absences and whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(datPlot0[,2], datPlot1[,2]), max(datPlot0[,2], datPlot1[,2]), length.out=length(datPlot0[,2])) 
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0)
+   
+  ksplt <- ggplot(datPlot, aes(x = datPlot[,2], group = datPlot[,1], color = as.factor(datPlot[,1]))) + #
+  stat_ecdf(size=1) +
+    theme_bw() +
+    theme(legend.position ="none", plot.title = element_text(hjust= 0.5)) +
+    xlab(paste(colnames(datPlot)[2],'scaled') ) +
+    ylab("ECDF") +
+    #geom_line(size=1) +
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+        linetype = "dashed", color = "red") +
+    geom_point(aes(x = x0[1] , y= y0[1]), color="red", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="red", size=2) +
+    ggtitle("K-S Test") +
+    # theme(legend.title=element_blank()) +
+     scale_colour_discrete(name = 'Distribution Type', labels = c('Whales Absent', 'Whales Present'))+
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.1, hjust=.2,label=paste('D=',round(datKS[1]$statistic,2))) +
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.05, hjust=.2,label=paste('p=',round(datKS$p.value,3)))
+
+  
+Cairo(here::here('figures', paste0('DataPlotsScaled_', gridsize, 'km_', loctype,'_', colnames(datPlot)[2], '.png')), width=14,height=6,
+    units='in', dpi=300, bg='white')
+multiplot(ptplt, histplt, ksplt, cols=3)
+dev.off()
+  
+   # ggsave(paste('DataPlots_',colnames(datPlot)[2],'.png'))
+  
+  }
+
+```
+
+
+### Data Splitting 
+Split the data into train and test sets
+```{r eval=FALSE}
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+trainAcOnly = NULL
+testAcOnly = NULL
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(PmScaled, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 & sid == 999)
+ listPres  <- splitdf(pres1, 777) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, 777)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainAcOnly = rbind( trainAcOnly, trainAll )
+testAcOnly  = rbind( testAcOnly,  testAll)
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+saveRDS(trainAcOnly, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_S999.rda')  ))
+saveRDS(testAcOnly, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_S999.rda')  ))
+
+# nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
+# nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
+```
+
+## Generalized Additive Models
+The data are treated as count data, number of sperm whale encounters per cell, and we used the Tweedie distribution since it has been shown to work well when fewer positive responses exist within the data.
+We used thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models.The log of the effort was included as an offset to account for the variation in effort per cell.
+
+
+### 10 km spatial scale
+
+
+```{r, eval=FALSE, echo=FALSE}
+# No knot contrain
+
+#No 2D smoother for longitude and latitude
+tw25 <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + offset(log.effort), data = PmScaled, family = tw)
+summary(tw25)
+par(mfrow = c(1,2))
+plot(tw25)
+gam.check(tw25)
+
+tw25LL <- gam(pa ~ s(bath_m) + s(sst) + s(chla) + s(temp600) + s(slope) + s(aspect) + s(ssh) + s(sshsd) + s(eke) + s(wavepow) + s(d2smt) +s(dist) + s(Longitude, Latitude) + offset(log.effort), data = PmScaled, family = tw)
+summary(tw25LL)
+par(mfrow = c(1,2))
+plot(tw25LL)
+gam.check(tw25)
+
+# tw25_p <- predict_gam(tw25)
+
+```
+
+* Knots contrained to k=3 according to literature on cetacean distribution models.
+* Automatic term selection is uses an additional penalty term when determining the smoothness of the function ('select' argument = TRUE).  
+* We excluded all non-significant variables (alpha=0.05) and refit the models until all variables were significant.  
+* REML is restricted maximum likelihood used to optimize the parameter estimates.
+
+Load training and test data
+```{r}
+# trainAcOnly <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '.rda')  ))
+# testAcOnly <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',   gridsize, 'km_', loctype2, '.rda')  ))
+# trainLoc <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_Loc.rda')  ))
+# testLoc <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_Loc.rda')  ))
+# Encounters only detected by acoustics, sighting ID = S999
+trainS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_S999.rda')  ))
+testS999 <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_S999.rda')  ))
+
+```
+
+## __Model Selection__
+
+### FULL MODEL  
++ does not include spatial smoother  
+```{r}
+# * Does NOT include sighted acoustic encounters OR spatial smoother
+require(mgcv)
+tw10S999 <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999)
+```
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'turquoise4', main='Full Ac Only-10km')
+```
+
+
+#### MODEL DIAGNOSTICS  
+The stripe at the bottom left of the residuals vs. fitted values (linear predictor) corresponds to the zeros.
+```{r echo=FALSE}
+# model diagnostics
+gam.check(tw10S999)
+```
+
+
+### REDUCE VARIABLES
+  * Removed non-significant variables: 
+```{r}
+# * Does NOT include sighted acoustic encounters
+
+tw10S999b <- gam(pa ~ s(bath_m, k=3) + s(temp600, k=3) + s(ssh, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999b)
+
+```
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999b, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'turquoise4', all.terms = TRUE, main='Reduced Ac Only-10km')
+```
+ 
+
+#### MODEL DIAGNOSTICS  
+
+```{r}
+# model diagnostics
+gam.check(tw10S999b)
+```
+
+
+  * Removed depth 
+```{r}
+# * Does NOT include sighted acoustic encounters
+
+tw10S999c <- gam(pa ~ s(temp600, k=3) + s(ssh, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999c)
+
+```
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999c, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'turquoise4', all.terms = TRUE, main='Reduced Ac Only-10km')
+```
+
+
+#### MODEL DIAGNOSTICS  
+
+```{r}
+# model diagnostics
+gam.check(tw10S999c)
+```
+
+
+
+### Include 2D Lat-Lon
+Includes 2D Lat-Lon smoother to account for spatial structure in the data  
+    * Notice that the temperature at 600m is no longer significant compared to the previous model, same as 25 km models 
+    * Depth, Distance to land and seamounts, chlorophyll, and SSH are now significant
+      
+```{r}
+
+tw10S999LL <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999LL)
+        
+        
+```
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999LL, pages = 4, residuals = FALSE, pch = 20, cex = 0.25,
+shade = T, scheme = 1, theta= 45, phi=40, shade.col = 'turquoise4', all.terms = TRUE, main='Acoustics Only')
+```
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters."}
+par(mfrow = c(1,1))
+plot(tw10S999LL, select = 1, scheme = 2, lwd = 2, main='Spatial 2D Smoother') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainS999, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+
+
+###MODEL DIAGNOSTICS  
+
+```{r echo=FALSE}
+# model diagnostics
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+gam.check(tw10S999LL)
+```
+Residuals more normally distributed compared to 25 km model?
+
+
+
+### REDUCE MODEL PARAMETERS  
+   * Removed non-significant variables:   
+      + sst 
+      + temp at 600 m
+      + SSHsd  
+      + EKE  
+      + wave power  
+      
+
+```{r eval =FALSE}
+tw10S999LLb <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) + s(chla, k=3) + s(ssh, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999LLb)
+```
+
+
+* Remove chlorophyll & distance to land
+
+```{r}
+tw10S999LLc <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3)  + s(d2smt, k=3) + s(ssh, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999LLc)
+```
+
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999LLc, pages = , residuals = FALSE, pch = 20, cex = 0.25,
+shade = T, scheme = 1, theta= 30, phi=20, shade.col = 'aquamarine', all.terms = TRUE, main='Reduced Ac Only w/ 2D smoother-25km')
+```
+
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters."}  
+par(mfrow = c(1,1))
+plot(tw10S999LLc, select = 1, scheme = 2, lwd = 2, main='2D Spatial Smoother') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainS999, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+
+
+* Remove depth and SSH, leaving only distance to seamounts ???
+```{r}
+tw10S999LLd <- gam(pa ~ s(Longitude, Latitude) + s(d2smt, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(tw10S999LLd)
+```
+
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(tw10S999LLd, pages = , residuals = FALSE, pch = 20, cex = 0.25,
+shade = T, scheme = 1, theta= 30, phi=20, shade.col = 'aquamarine', all.terms = TRUE, main='Reduced Ac Only w/ 2D smoother-25km')
+```
+
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters."}  
+par(mfrow = c(1,1))
+plot(tw10S999LLd, select = 1, scheme = 2, lwd = 2, main='2D Spatial Smoother') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainS999, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+
+
+### Conclusions
+Models for 10 km spatial scale explain the data with fewer variables compared to the 25 km models but the explained deviance is much lower for the 10 km plots, about half the explained deviance of the 25 km models.
+
+Plots without a spatial smoother included temperature at 600 m and SSH as significant but very low explained deviance ~2.8%, yikes.
+Including a spatial smoother reduced the model even further, excluding all dynamic variables and only including the spatial smoother with distance to seamount. This does not seem very informative? The spatial smoother does indicate a similar pattern in the probability of sperm whale occurrence with the general pattern of an overall higher occurrence north of the islands with the highest probability in the northwestern region. 
+Are there generally more seamounts in this area that the 'distance to seamount' variable can pick up on using the finer spatial scale? 
+
+
+
+```{r echo=FALSE, eval=FALSE}
+# * Includes Sighted Acoustic Encounters
+# (Filtered chla for values < 10 (scaled))
+
+require(mgcv, eval=FALSE)
+#with training dataset
+twFull <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(aspect, k=3) + offset(log.effort), data = trainAcOnly, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twFull)
+# 
+# ```
+# ```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twFull, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'lavender', all.terms = TRUE, main='Training Dataset, Sightings Included')
+
+# model diagnostics
+gam.check(twFull)
+```
+
+```{r eval=FALSE, echo=FALSE}
+# * Includes Sighted Acoustic Encounters AND __ASPECT__
+# (Filtered chla for values < 10 (scaled))
+#with training dataset
+twFullasp <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(aspect, k=3) + offset(log.effort), data = trainAcOnly, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twFullasp)
+# 
+# ```
+# ```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twFullasp, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'slateblue1', all.terms = TRUE, main='Training Dataset, Sightings Included')
+
+# model diagnostics
+gam.check(twFullasp)
+```
+
+```{r eval=FALSE, echo=FALSE}
+# * Does NOT include sighted acoustic encounters OR __ASPECT__
+require(mgcv)
+#with training dataset
+twS99 <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twS99)
+# 
+# ```
+# ```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twS99, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'turquoise2', all.terms = TRUE, main='Training Dataset, No Sightings')
+
+# model diagnostics
+gam.check(twS99)
+```
+
+```{r eval=FALSE, echo=FALSE}
+# * Does NOT include sighted OR unlocalized acoustic encounters
+
+require(mgcv)
+#with training dataset
+twLoc <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainLoc, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twLoc)
+# 
+# ```
+# ```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twLoc, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'yellow', all.terms = TRUE, main='Training Dataset, No Sightings')
+
+# model diagnostics
+gam.check(twLoc)
+```
+
+```{r eval=FALSE, echo=FALSE}
+#*With full dataset and __unfiltered chla__
+twFullb <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = PmScaled, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twFullb)
+#```
+
+#```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twFullb, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'hotpink', all.terms = TRUE, main='Full Dataset, All Chla')
+
+# model diagnostics
+gam.check(twFullb)
+```
+
+```{r eval=FALSE,echo=FALSE}
+# *With full dataset and __filtered chla__
+PmScaled2 <- subset(PmScaled, chla < 10)
+
+twFullc <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = PmScaled2, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twFullc)
+# ```
+# ```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twFullc, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'turquoise2', all.terms = TRUE, main='Full Dataset, Filtered Chla')
+
+# model diagnostics
+gam.check(twFullc)
+```
+
+```{r echo=FALSE,eval=FALSE}
+#finding the raw values do not give same answer as scaled, just slightly different.
+twFullr <- gam(pa ~ s(depth, k=3)+s(distland, k=3) + s(slope, k=3) + s(distseamt, k=3) + s(SST, k=3) + s(chlA, k=3) + s(temp600m, k=3 ) + s(SSH, k=3) + s(SSHsd, k=3) + s(EKE, k=3) + s(wavepower, k=3) + offset(logeffort), data = PmRaw, family = tw, link = 'log', select = TRUE, method = "REML")
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twFullr, pages = 3, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'lavender', all.terms = TRUE)
+```
+
+
+
+```{r echo=FALSE,eval=FALSE}
+#### Models including only static variables
+# What are the effects of the static/geographic variables on sperm whale occurrence?
+#    * Resulted in only ~6% deviance explained for any iteration
+#    * Depth, slope, distance to seamount were significant, no aspect included
+require(mgcv)
+twStat <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3) + s(slope, k=3) + s(d2smt, k=3) + s(aspect, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twStat)
+# 
+# ```
+# ```{r echo=FALSE,eval=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twStatraw, pages = 1, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'lemonchiffon3', all.terms = TRUE)
+gam.check(twStat)
+
+```
+
+```{r echo=FALSE, eval=FALSE}
+twStatraw <- gam(pa ~ s(depth, k=3)+s(distland, k=3) + s(slope, k=3) + s(distseamt, k=3) + offset(logeffort), data = PmRaw, family = tw, link = 'log', select = TRUE, method = "REML")
+
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twStatraw, pages = 1, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'darkseagreen2', all.terms = TRUE)
+
+
+# + s(sst, k=3) + s(chla, k=3) + s(temp600) + s(slope, k=3) + s(aspect, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + s(d2smt, k=3) + s(dist, k=3) + 
+```
+
+
+
+```{r echo=FALSE,eval=FALSE}
+#### Models only including dynamic variables to evaluate their explanatory power alone.
+#   * Resulted in 8.6% explained deviance, all variables significant except wave power
+
+
+twDyn <- gam(pa ~ s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainS999, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twDyn)
+```
+```{r echo=FALSE, eval=FALSE}
+
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twDynraw, pages = 2, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'tan1', all.terms = TRUE, ylim = c(-20, 5))
+
+gam.check(twDyn)
+```
+
+```{r echo=FALSE, eval=FALSE}
+#raw model for plotting
+twDynraw <- gam(pa ~ s(SST, k=3) + s(chlA, k=3) + s(temp600m, k=3 ) + s(SSH, k=3) + s(SSHsd, k=3) + s(EKE, k=3) + s(wavepower, k=3) + offset(logeffort), data = PmRaw, family = tw, link = 'log', select = TRUE, method = "REML")
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+plot(twDynraw, pages = 2, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'darkseagreen2', all.terms = TRUE, ylim = c(-20, 5))
+```
+
+

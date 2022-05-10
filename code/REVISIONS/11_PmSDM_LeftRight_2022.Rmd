@@ -1,0 +1,370 @@
+---
+title: "Sperm Whale SDMs - Left or Right Only"
+author: "Yvonne Barkley, PhD"
+date: "5/3/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Models that test out different variations of using the data from the left and/or right estimated locations.
+
+
+```{r, echo=F, eval=FALSE, message=FALSE}
+#randomly select As and Bs for loc encs: https://stackoverflow.com/questions/10010220/random-row-selection-in-r
+randomRows = function(df,n){
+  return(df[sample(nrow(df),n),])
+}
+library(plyr)
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+library(lubridate)
+library(viridis)
+library(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.8))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+
+```
+
+```{r echo=FALSE}
+#Values for COMBINED MODELS
+survey = 'AllSurveys'
+gridsize = 16
+loctype = 'Combined'
+loctype2 = 'Comb'
+#data has logged vars and temporal variables
+## SAVED from line 251 in 10_PmSDM_AcousticCombined.rmd
+# PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
+# PmCombo2 <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+
+PmCombo <- readRDS( here::here(paste0('data/Pm_Combined_2022_v2.rda') ) )
+
+PmCombo <- filter(PmCombo, SSHsd < 0.03)
+# rm(list = ls()[grep("ssh", ls())]) 
+```
+
+# Combo Models: Foraging & NonForaging
+## Select left or right locations
+Some localized encounters only have one peak, A or B, so we need to include that in each run. The random set will automatically choose them.
+```{r}
+
+# Extract rows for localized encounters with a single peak, PmOnePeak
+PmOnePeak <- filter(PmCombo, pa ==1 & loc ==1)
+PmOnePeak <- select(PmOnePeak, ID, peak)
+PmOnePeak <- as.data.frame( PmOnePeak %>% group_by(ID)%>%count %>% filter(n==1) )
+PmOnePeak <-  PmCombo[PmCombo$ID %in% PmOnePeak$ID, ]
+
+PmLeft <- filter(PmCombo, peak == 'A' | sid < 999 | pa == 0)
+PmLeft2 <- unique(bind_rows(PmLeft, PmOnePeak))
+
+PmRight <- filter(PmCombo, peak == 'B' | sid < 999 | pa == 0)
+PmRight2 <- unique(bind_rows(PmRight, PmOnePeak))
+
+# Choose random subset of IDs from localized encs
+Pm_uniq <- plyr::ddply(PmCombo, .(ID), randomRows, 1) #unique IDs
+Pm_uniq <- Pm_uniq[complete.cases(Pm_uniq[ , 4]) , ]
+
+Pm_uniq2 <- plyr::ddply(Pm_uniq, .(effCells), randomRows, 1) #unique effCells to solve pa==2 repeats
+Pm_abs  <- filter( PmCombo, pa == 0 )
+PmLeftRight <- rbind(Pm_uniq2, Pm_abs)
+PmLeftRight <- filter(PmLeftRight, loc == 1 | sid <999 | pa==0)  #still has doubles for loc encs
+
+
+
+
+
+```
+
+## Check IDs are all there
+```{r}
+PmLeftchk <- select(PmLeft2, pa, ID, peak) %>% filter(pa ==1) %>% arrange(ID)
+PmRightchk <- select(PmRight2, pa, ID, peak) %>% filter(pa ==1)%>% arrange(ID)
+PmLeftRightchk <- dplyr::select(PmLeftRight, pa, ID, peak) %>% filter(pa ==1)%>% arrange(ID)
+
+#Do both dataframes have the same IDs?
+Pmtest <- left_join(PmLeftchk, PmLeftRightchk, by = 'ID')
+
+```
+
+
+#LEFT
+```{r}
+
+trainLeft = NULL
+testLeft = NULL
+# preschk = NULL
+seed = 1 #124a #200e
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   require(dplyr)
+ trSub <- filter(PmLeft2, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+# preschk = rbind(preschk, pres1)
+ #subset for absences and split 80/20
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainLeft = rbind( trainLeft, trainAll )
+testLeft  = rbind( testLeft,  testAll )
+
+}
+```
+
+```{r}
+modLeft  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) , data = trainLeft, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeft) 
+
+modLeft2  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(SST, k=3) +s(SSHsd, k=3) +  offset(log.effort) , data = trainLeft, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeft2)
+
+
+```
+## LEFT plots
+```{r}
+par(mar=c(4,4.5,1,1),mfrow = c(1,2))
+
+plot(modLeft2, select=2, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab='SSHsd (m)',seWithMean = TRUE, ylim = c(-5,4),cex.axis = 1.2, cex.lab = 1.5 )
+
+plot(modLeft2, select=3, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'gray85', all.terms = TRUE, xlab=expression("Year"), seWithMean = TRUE, ylim = c(-1.5,2),cex.axis = 1.2, cex.lab = 1.5 )
+
+# dev.off()
+```
+
+
+#RIGHT
+```{r}
+
+trainRight = NULL
+testRight = NULL
+# preschk = NULL
+seed = 2 #124a #200e
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   require(dplyr)
+ trSub <- filter(PmRight2, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+# preschk = rbind(preschk, pres1)
+ #subset for absences and split 80/20
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainRight = rbind( trainRight, trainAll )
+testRight  = rbind( testRight,  testAll )
+
+}
+```
+
+Had used k=15 for 2D smoother, but changed to k=12
+```{r}
+modRight  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort)   , data = trainRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modRight) 
+
+modRight2  <- gam(pa ~  s(Longitude, Latitude, k=12) +  s(SST, k=3) + s(SSHsd, k=3) +  offset(log.effort) , data = trainRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modRight2)
+
+
+```
+
+#LEFT & RIGHT
+```{r}
+
+trainLeftRight = NULL
+testLeftRight = NULL
+# preschk = NULL
+seed = 1 #1
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   require(dplyr)
+ trSub <- filter(PmLeftRight, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+# preschk = rbind(preschk, pres1)
+ #subset for absences and split 80/20
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainLeftRight = rbind( trainLeftRight, trainAll )
+testLeftRight  = rbind( testLeftRight,  testAll )
+
+}
+```
+
+```{r}
+modLeftRight  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) , data = trainLeftRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeftRight) 
+
+modLeftRight2  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(SSHsd, k=3) +s(Temp584m, k=3) +  offset(log.effort), data = trainLeftRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeftRight2)
+
+
+```
+
+
+#LEFT & RIGHT
+```{r}
+
+trainLeftRight = NULL
+testLeftRight = NULL
+# preschk = NULL
+seed = 1 #1
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   require(dplyr)
+ trSub <- filter(PmLeftRight, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+# preschk = rbind(preschk, pres1)
+ #subset for absences and split 80/20
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainLeftRight = rbind( trainLeftRight, trainAll )
+testLeftRight  = rbind( testLeftRight,  testAll )
+
+}
+```
+
+```{r}
+modLeftRight  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) , data = trainLeftRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeftRight) 
+
+modLeftRight2  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(SSHsd, k=3) +s(Temp584m, k=3) +  offset(log.effort), data = trainLeftRight, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modLeftRight2)
+
+
+```
+
+#Predictions 2022
+```{r echo=FALSE}
+
+require(magrittr)
+require(dplyr)
+
+### Left Model Predictions ####
+trainLeftPred <- trainLeft %>% mutate(resid = resid(modLeft2), predict = predict(modLeft2))
+LeftPred <- predict.gam(modLeft2, type = 'response', se.fit=TRUE)  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+trainLeftPred$fit <- LeftPred$fit
+trainLeftPred$se.fit <- LeftPred$se.fit
+#using scale of 0,1,2 makes this hard to interpret
+modLeftMSEtrain <- mean((trainLeftPred$pa - trainLeftPred$fit)^2)  #MSE
+
+
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+testLeftPred <- predict.gam(modLeft2, newdata = testLeft, type = 'response', se.fit = TRUE)
+testLeftFinal <- data.frame(testLeft, fit = testLeftPred$fit, se.fit=testLeftPred$se.fit)
+modLeftMSEtest <- mean((testLeftFinal$pa - testLeftFinal$fit)^2) #MSE
+
+
+### Right Model Predictions ####
+trainRightPred <- trainRight %>% mutate(resid = resid(modRight2), predict = predict(modRight2))
+RightPred <- predict.gam(modRight2, type = 'response', se.fit=TRUE)  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+trainRightPred$fit <- RightPred$fit
+trainRightPred$se.fit <- RightPred$se.fit
+#using scale of 0,1,2 makes this hard to interpret
+modRightMSEtrain <- mean((trainRightPred$pa - trainRightPred$fit)^2)  #MSE
+
+
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+testRightPred <- predict.gam(modRight2, newdata = testRight, type = 'response', se.fit = TRUE)
+testRightFinal <- data.frame(testRight, fit = testRightPred$fit, se.fit=testRightPred$se.fit)
+modRightMSEtest <- mean((testRightFinal$pa - testRightFinal$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+### Random Model Predictions ####
+trainLRPred <- trainLeftRight %>% mutate(resid = resid(modLeftRight2), predict = predict(modLeftRight2))
+LeftRightPred <- predict.gam(modLeftRight2, type = 'response', se.fit=TRUE)  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+trainLRPred$fit <- LeftRightPred$fit
+trainLRPred$se.fit <- LeftRightPred$se.fit
+#using scale of 0,1,2 makes this hard to interpret
+modLeftRightMSEtrain <- mean((trainLRPred$pa - trainLRPred$fit)^2)  #MSE
+
+
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+
+testLRPred <- predict.gam(modLeftRight2, newdata = testLeftRight, type = 'response', se.fit = TRUE)
+testLRFinal <- data.frame(testLeftRight, fit = testLRPred$fit, se.fit=testLRPred$se.fit)
+modLeftRightMSEtest <- mean((testLRFinal$pa - testLRFinal$fit)^2) #MSE
+
+
+
+# AIC
+AICLeft <- AIC(modLeft2)
+AICRight <- AIC(modRight2)
+AICLR <- AIC(modLeftRight2)
+
+# Explained Deviance
+Left_expDev = round(((modLeft2$null.deviance-modLeft2$deviance)/modLeft2$null.deviance)*100, 2)
+Right_expDev = round(((modRight2$null.deviance-modRight2$deviance)/modRight2$null.deviance)*100, 2)
+LR_expDev = round(((modLeftRight2$null.deviance-modLeftRight2$deviance)/modLeftRight2$null.deviance)*100, 2)
+
+# Summary table
+# 
+table2 = matrix(NA, nrow = 3, ncol = 6)
+colnames(table2) = c("Models", "ExpDev", "AIC", "MSEtrain", "MSEtest", "Predictor Variables")
+
+### HARD CODED SOME VALUES BC THEY WERE BEING A LITTLE BITCH
+table2[1,] <- c("Left", paste0(Left_expDev, '%'), round(AICLeft,2), round(modLeftMSEtrain,3), round(modLeftMSEtest,3), 
+              paste0('SSHsd, SST, LON:LAT'))
+table2[2,] <- c("Right", paste0(Right_expDev, '%'), round(AICRight,2), round(modRightMSEtrain,3),
+               round(modRightMSEtest,3), paste0('SSHsd, SST, LON:LAT'))
+table2[3,] <- c("Random Selection of Left & Right", paste0(LR_expDev, '%'), round(AICLR,2), round(modLeftRightMSEtrain,3),
+               round(modLeftRightMSEtest,3), paste0('SSHsd, Temp at 584m, LON:LAT'))
+
+require(knitr)
+# kable(table, caption = "Summary Results for Foraging and Non-Foraging Models")
+kable(table2, caption = "Summary Results for Left & Right Models")
+```
+
+
+

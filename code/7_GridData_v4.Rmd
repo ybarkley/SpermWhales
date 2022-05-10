@@ -135,7 +135,9 @@ pmDetsAc <- filter(pmDets, sid == 999)
 #winner! See v2 for other variations
 dsmAll_3pcthn <- Distance::ds(pmDetsAc, key = 'hn', truncation = '3%')
 
+png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Fig1_DetFxn_a.png", width = 15, height = 13, res = 300, units = "cm") 
 plot(dsmAll_3pcthn)
+dev.off()
 
 summary(dsmAll_3pcthn)
 gof_ds(dsmAll_3pcthn)

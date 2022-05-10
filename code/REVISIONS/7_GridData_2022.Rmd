@@ -612,23 +612,23 @@ if (nrow(pmDetsub) == nrow(dplyr::filter(ALLcentroids, pa == 1))){
 # plotGridResult(gridEffort)
 
 #non-function form of plotting to plot one detection or other data points
-x <- gridEffort
+x <- gridEffortOLD
 actualArea <- as.numeric(st_area(x$grid))
-coveragePct <- round(x$effort$area / actualArea, 3)
+coveragePct <- round(x$effort$area / actualArea, 2)
 coveragePct <- ifelse(coveragePct > 1, 1, coveragePct)
 
-pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_COMB.pdf')), width=11,height=8)
+pdf(here::here('figures', paste0('Grid', surveynum, '_', gridsize, 'km_', loctype, '_COMB_fig3_orrange.pdf')), width=11,height=8)
 
-plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.2)
-points(x=x$gps$Longitude, y=x$gps$Latitude, col='blue', pch=16, cex = 0.1)
-points(centroidAll$lon, centroidAll$lat, col='red', pch = 19, cex=0.1, lwd=0.1)
+plot(x$grid, col = gray(1 - coveragePct, alpha = .9), lwd = 0.2)  #grid
+points(x=x$gps$Longitude, y=x$gps$Latitude, col='darkorange', pch=16, cex = 0.05)  #trackline
+points(centroidAll$lon, centroidAll$lat, col='red', pch = 20, cex=0.08, lwd=0.1)  #centroids
 
 # points(x=centroidAll$lon, y=centroidAll$lat, col='red', pch = 16, cex=0.5 ) #point for A121.S44
 #203.4318	21.36744	three times through here?
 
 # points(x=dbl_eff2$lon, y=dbl_eff2$lat, col='red', pch = 0, cex=0.2, lwd = 0.2 ) 
-points(x=pmDetsub$Longitude, y=pmDetsub$Latitude, col='green', pch=1, cex=0.3, lwd=0.3) #Longitude is trackline location
-text(pmDetsub$Longitude, pmDetsub$Latitude,col='magenta', labels=pmDetsub$acid, cex=0.3, lwd = 0.3 )
+# points(x=pmDetsub$Longitude, y=pmDetsub$Latitude, col='green', pch=1, cex=0.3, lwd=0.3) #Longitude is trackline location
+# text(pmDetsub$Longitude, pmDetsub$Latitude,col='magenta', labels=pmDetsub$acid, cex=0.3, lwd = 0.3 )
 # points(x=187.6831, y=26.60179	, col='darkturquoise', pch = 15, cex=0.5, lwd = 0.5 ) #square
 # points(x=187.5513, y=26.66397	, col='deeppink3', pch = 17, cex=0.5, lwd = 0.5 ) #triangle
 # points(effchg$Longitude, effchg$Latitude, col='orange', pch=3, cex=0.05)

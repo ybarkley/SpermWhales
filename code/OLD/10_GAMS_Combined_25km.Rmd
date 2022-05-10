@@ -1,0 +1,607 @@
+---
+title: "Negative Binomial GAMs, Combined Models, 25 km"
+author: "Yvonne Barkley"
+date: "10/4/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width =8, fig.height = 6, message=FALSE, tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+Load libraries
+```{r, echo=T, eval=FALSE}
+library(tidyverse)
+library(mgcv)
+library(corrplot)
+library(geoR)
+library(tidymv)
+library(here)
+```
+
+
+# Research question:
+## What environmental variables characterize sperm whale habitat? 
+## Hypothesis: Sperm whales are found in deep, productive offshore waters. 
+
+
+This markdown documents the model selection process and the resulting best-fit models. The first set of models does not include a spatial smoother. Models from this set are compared to a second set of models that include a spatial smoother to account for spatial autocorrelation. 
+The literature suggests using various error distributions as the GAM model family. The full model for each set compares a negative binomial model with a model built using a Tweedie distribution, which are both appropriate for this data set. Overall, the negative binomial models performed better, relatively speaking, and were used for the final models for the model sets with and without spatial smoothers.
+
+
+Load universal variables
+```{r}
+#Values used for file and directory names
+survey = 'AllSurveys'
+gridsize = 25
+loctype = 'Combined'
+loctype2 = 'Comb'
+
+```
+
+Load data from 'models/data' folder
+```{r}
+PmScaled <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
+# add column for log effort as offset #
+PmScaled$log.effort	= log(PmScaled$EffArea)
+PmScaled <- subset(PmScaled, chla <= 9) #some outliers in a handful of absences
+PmScaled$distseamt.r=  PmScaled$distseamt.r/1000 
+```
+```{r eval=FALSE,echo=FALSE}
+
+PmRaw <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_raw.rda') ))
+PmRaw$log.effort	= log(PmRaw$EffArea)
+PmRaw$d2smt = PmRaw$d2smt/1000 #for plotting purposes
+
+colnames(PmRaw)[c(18:29,44)] <- c('SST.r', 'chla.r', 'temp600m.r', 'wavepower.r', 'depth.r', 'slope.r', 'aspect.r', 'distland.r', 'SSH.r', 'SSHsd.r', 'EKE.r', 'distseamt.r', 'logeffort.r')
+
+PmScaled <- data.frame(PmScaled, PmRaw[, c(18:29,44)])
+# head(dplyr::arrange(PmScaled, desc(chla)))
+# PmScaled <- subset(PmScaled, chla <= 10)
+
+```
+
+Check correlation of covariates
+```{r fig.width =10, fig.height = 6}
+require(corrplot)
+corrplot.mixed(cor(PmScaled[,18:29]), upper="number", lower="circle")
+
+# Are all correlation coefficients < |0.6|?
+abs(cor(PmScaled[,18:29])) <= 0.6
+
+```
+
+### KS tests 
+I compared the distributions of environmental data between the whales and the absences. 
+Plots are attached in separate powerpoint. In summary, temperature at 600 m, SSH, and chlorophyll were the only variables with significantly different distributions (p-value < 0.05). However, the D statistics were close to zero (D ~ 0.1) for each, indicating that although the distributions were different, they were not that far apart. The plots also show how similar the general shape of the distributions are between where the whales were observed and where they were absent.
+```{r echo=FALSE, eval=FALSE}
+# par(mfrow = c(1,1))
+# with(CompleteTotal, plot(pa~bath_m))
+require(Cairo)
+require(ggplot2)
+source('./code/multiplot.r') 
+
+ 
+loopVec <- 18:29  #columns from PmScaled to plot
+ 
+par(mfrow = c(1, 3), mar=c(3,3,1,1), oma=c(0,0,3,1))
+ 
+for (j in loopVec){
+   #use original values for plots with PmRaw
+   datPlot <- PmScaled[,c(1,j)]  #get dataframe of pa and variable j
+   datPlot$bin <- 0
+   datPlot$bin <- ifelse(datPlot$pa >0 , 1, 0) #put 1s in color col for plotting later
+   datPlot <- select(datPlot, bin, 2, pa)
+    #normal plot
+   # plot(datPlot[,2], datPlot[,1], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'whales per cell')
+   
+
+   ptplt <-  ggplot(datPlot, aes(datPlot[,2],datPlot[,1], colour=as.factor(datPlot[,1]))) +
+       geom_point() +   
+     theme(legend.position ="none") +
+       xlab(paste(colnames(datPlot)[2], 'scaled' )) +
+       ylab('whales per cell')+
+       # scale_colour_discrete(name='',labels = c('Whales Absent', 'Whales Present'))+
+theme_bw() +
+  guides(colour=FALSE)
+   
+   #histogram
+   # hist(datPlot[,2], xlab = paste('scaled',colnames(datPlot)[2]), ylab = 'frequency', main='' )
+   
+   histplt <- ggplot(datPlot, aes(datPlot[,2], fill=as.factor(datPlot[,1]))) +
+     geom_histogram(colour='black', binwidth = 0.5) +
+    xlab(paste(colnames(datPlot)[2],'scaled' )) +
+    ylab('Frequency') +
+     scale_fill_discrete(name = '', labels = c('Whales Absent', 'Whales Present'))+
+     theme_bw() +
+     theme(legend.position ="top",
+           legend.text=element_text(size=16)) 
+
+   
+   #do KS test and plot
+   datPlot1 <- filter(datPlot, pa >0)
+   datPlot0 <- filter(datPlot, pa ==0)
+
+   datKS <- ks.test(datPlot1[,2], datPlot0[, 2])
+     cdf0 <- ecdf(datPlot0[,2]); cdf1 <- ecdf(datPlot1[,2]) #make cdfs for the absences and whales for that variable
+   #find min and max stats to draw the line between the greatest distance between the distributions
+   minMax <- seq(min(datPlot0[,2], datPlot1[,2]), max(datPlot0[,2], datPlot1[,2]), length.out=length(datPlot0[,2])) 
+   x0 <- minMax[which( abs(cdf0(minMax) - cdf1(minMax)) == max(abs(cdf0(minMax) - cdf1(minMax))) )] 
+   y0 <- cdf0(x0) #sometimes there are 2 points with the same minmax, take the first one 
+   y1 <- cdf1(x0)
+   
+  ksplt <- ggplot(datPlot, aes(x = datPlot[,2], group = datPlot[,1], color = as.factor(datPlot[,1]))) + #
+  stat_ecdf(size=1) +
+    theme_bw() +
+    theme(legend.position ="none", plot.title = element_text(hjust= 0.5)) +
+    xlab(paste(colnames(datPlot)[2],'scaled') ) +
+    ylab("ECDF") +
+    #geom_line(size=1) +
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+        linetype = "dashed", color = "red") +
+    geom_point(aes(x = x0[1] , y= y0[1]), color="red", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="red", size=2) +
+    ggtitle("K-S Test") +
+    # theme(legend.title=element_blank()) +
+     scale_colour_discrete(name = 'Distribution Type', labels = c('Whales Absent', 'Whales Present'))+
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.1, hjust=.2,label=paste('D=',round(datKS[1]$statistic,2))) +
+    annotate("text",x=max(datPlot[,2])-2,y=min(datPlot[,1])+0.05, hjust=.2,label=paste('p=',round(datKS$p.value,3)))
+
+  
+Cairo(here::here('figures', paste0('DataPlotsScaled_', gridsize, 'km_', loctype,'_', colnames(datPlot)[2], '.png')), width=14,height=6,
+    units='in', dpi=300, bg='white')
+multiplot(ptplt, histplt, ksplt, cols=3)
+dev.off()
+  
+   # ggsave(paste('DataPlots_',colnames(datPlot)[2],'.png'))
+  
+  }
+
+```
+
+
+### Data Visualization
+Histograms showing the general distribution of each environmental predictor for the entire dataset.
+```{r}
+par(mfrow = c(3, 4), mar=c(3,3,2,1), oma=c(0,0,3,1))
+ 
+dataSet = PmScaled   #raw values
+
+loopVec <-  30:41  #columns from PmScaled to plot
+ 
+ for (j in loopVec){
+   
+   datPlot <- dataSet[, c(1,j)]
+   
+   hist(datPlot[,2], main = colnames(datPlot)[2], ylab='frequency', xlab = '')
+      # plot(datPlot[,2], datPlot[,1], ylab = 'Whales', xlab = colnames(datPlot)[2])
+mtext(paste0("Acoustics Only Data, ", gridsize, 'km grid'), side=3, line=1, outer=TRUE, cex=1, font=1)
+
+ }
+
+# dev.off()
+```
+
+
+
+### Data Splitting 
+Split the data into train and test sets
+```{r eval=FALSE}
+require(dplyr)
+splitdf <- function(dataframe, seed=NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    index <- 1:nrow(dataframe)
+    trainindex <- sample(index, trunc(length(index)*0.7))
+    trainset <- dataframe[trainindex, ]
+    testset <- dataframe[-trainindex, ]
+    list(trainset=trainset,testset=testset)
+}
+
+trainComb = NULL
+testComb = NULL
+seed = 2
+
+for (s in c(1641, 1303, 1604, 1705, 1706)){
+   
+ trSub <- filter(PmScaled, survey == s)
+
+ #subset for presences and split 70/30
+ pres1 <- filter(trSub, pa > 0 )# & loc == 1) #include all presence data/acoustic encounters
+ listPres  <- splitdf(pres1, seed) #output is list for train and test
+
+ #subset for absences and split 70/30
+ abs0  <- filter(trSub, pa == 0 )
+ listAbs <- splitdf(abs0, seed)  #output is list for train and test
+
+ #combine train data for presence and absence
+ trainAll <- rbind( listPres$trainset, listAbs$trainset )
+ 
+ #combine test data for presence and absence
+ testAll  <- rbind( listPres$testset,  listAbs$testset  )
+   
+trainComb = rbind( trainComb, trainAll )
+testComb  = rbind( testComb,  testAll )
+
+# trainAcOnly$log.effort <- log(trainAcOnly$EffArea)
+# testAcOnly$log.effort <- log(testAcOnly$EffArea)
+}
+saveRDS(trainComb, here::here(  paste0('output/models/',loctype, '/data/Train_', gridsize, 'km_', loctype2, '_Comb.rda')  ))
+saveRDS(testComb, here::here(  paste0('output/models/',loctype, '/data/Test_', gridsize, 'km_', loctype2, '_Comb.rda')  ))
+
+# nrow(dplyr::filter(trainAcOnly, trainAcOnly$pa >0))
+# nrow(dplyr::filter(testAcOnly, testAcOnly$pa >0))
+```
+
+## Generalized Additive Models
+The data are treated as count data, number of sperm whale encounters per cell, and we used the negative binomial distribution to model the response variable for comparison with the Tweedie distribution. 
+We used thin-plate regression splines (the default basis) for the smoothers of the environmental predictors. Each smoother was limited to 3 degrees of freedom (k=3) to reduce overfitting parameters per recommendations from other studies building similar types of cetaceans distribution models. The log of the effort was included as an offset to account for the variation in effort per cell.
+
+
+### 25 km spatial scale
+
+* NEGATIVE BINOMIAL DISTRIBUTION
+* Knots contrained to k=3 according to literature on cetacean distribution models.
+* Automatic term selection is uses an additional penalty term when determining the smoothness of the function ('select' argument = TRUE)..
+* We excluded all non-significant variables (alpha=0.05) and refit the models until all variables were significant.
+* REML is restricted maximum likelihood used to optimize the estimates for the smoothing parameters of each predictor variable.
+
+Load training and test data
+```{r}
+#seed 1
+trainComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Train_',   gridsize, 'km_', loctype2, '_Comb.rda')  ))
+testComb <- readRDS(here::here(  paste0('output/models/',loctype, '/data/Test_',     gridsize, 'km_', loctype2, '_Comb.rda')  ))
+trainComb$log.chla <- scale(log(trainComb$chla.r))
+trainComb$log.eke <- scale(log(trainComb$eke.r))
+trainComb$log.wp <- scale(log(trainComb$wavepower.r))
+testComb$log.chla <- scale(log(testComb$chla.r))
+testComb$log.eke <- scale(log(testComb$eke.r))
+testComb$log.wp <- scale(log(testComb$wavepower.r))
+```
+
+# __Model Selection__
+
+## SET 1
+### Full Models
+    + does not include spatial smoother
+    + does not include slope or aspect due to the variation between left and right
+
+
+```{r}
+require(mgcv)
+nbComb <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3)  + s(d2smt, k=3) +  s(sst, k=3) + s(log.chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(log.eke, k=3) + s(log.wp, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbComb)
+        
+```
+```{r }
+# model diagnostics
+par(mfrow=c(2,2))
+gam.check(nbComb)
+```
+
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(4,4))
+plot(nbComb, pages = 2, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'orange', all.terms = TRUE, main='Full Models Set 1')
+```
+
+
+### Trying the Tweedie for comparison
+```{r}
+twComb <- gam(pa ~ s(bath_m, k=3) + s(dist, k=3)  + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twComb)
+        
+```
+```{r echo=FALSE}
+lowaic = AIC(twComb)
+hiaic = AIC(nbComb)
+# Explained Deviance
+twFullMod = round(((twComb$null.deviance-twComb$deviance)/twComb$null.deviance)*100, 2)
+nbFullMod = round(((nbComb$null.deviance-nbComb$deviance)/nbComb$null.deviance)*100, 2)
+
+table = matrix(NA, nrow = 2, ncol = 3)
+colnames(table) = c("Full Models", "ExpDev", "AIC")
+
+# enter info by row
+table[1,] <- c("Full Tweedie-twComb", paste0(twFullMod, '%'), round(lowaic, 2))
+table[2,] <- c("Full Neg Bin-nbComb", paste0(nbFullMod, '%'), round(hiaic,2))
+require(knitr)
+kable(table, caption = "Model Comparison Metrics")
+
+```
+```{r eval=FALSE,echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(4,4))
+plot(twComb, pages = 2, residuals = FALSE, pch = 20, cex = 0.25,
+scheme = 1, shade = T, shade.col = 'orange', all.terms = TRUE, main='Tweedie Full Models Set 1')
+par(mfrow=c(2,2))
+# model diagnostics
+gam.check(twComb)
+
+```
+
+
+### Reduced Models
+  * Negative Binomial -> higher explained deviance, lower AIC than Tweedie
+  * Removed non-significant variables:   
+      + depth
+      + distance to land
+      + distance to seamount
+      + eke
+      + wave power
+  * Keep:
+      + SST
+      + Chl a
+      + Temp at 600 m
+      + SSH
+      + SSHsd
+```{r echo=FALSE}
+# * Does NOT include sighted acoustic encounters
+
+nbCombb <- gam(pa ~ s(sst, k=3) + s(log.chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3)  + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbCombb)
+
+```
+
+```{r echo=FALSE, eval=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(3,2))
+plot(nbCombb, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-6,2),
+scheme = 1, shade = T, shade.col = 'orange', all.terms = TRUE, main='Best NegBin Reduced Combined-25km')
+#### Explained Deviance = `round(((twCombb$null.deviance-twCombb$deviance)/twCombb$null.deviance)*100, 1)`
+```
+
+```{r echo=FALSE}
+colnames(trainComb)[30] <- 'SST'
+colnames(trainComb)[57] <- 'log.Chla'
+colnames(trainComb)[32] <- 'Temp584m'
+colnames(trainComb)[38] <- 'SSH'
+colnames(trainComb)[39] <- 'SSHsd'
+colnames(testComb)[30] <- 'SST'
+colnames(testComb)[57] <- 'log.Chla'
+colnames(testComb)[32] <- 'Temp584m'
+colnames(testComb)[38] <- 'SSH'
+colnames(testComb)[39] <- 'SSHsd'
+```
+
+```{r}
+nbCombb <- gam(pa ~ s(SST, k=3) + s(Chla, k=3) + s(Temp600m, k=3) + s(SSH, k=3) + s(SSHsd, k=3)  + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbCombb)
+
+```
+```{r }
+# Model diagnostics
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+gam.check(nbCombb)
+```
+
+```{r echo=FALSE}
+par(mar=c(4,4,3,3),mfrow = c(3,2))
+plot(nbCombb, residuals = FALSE, pch = 20, cex = 0.25, ylim = c(-6,2),
+scheme = 1, shade = T, shade.col = 'orange', all.terms = TRUE, main='Best Set 1 Model-Reduced')
+#### Explained Deviance = `round(((twCombb$null.deviance-twCombb$deviance)/twCombb$null.deviance)*100, 1)`
+```
+  
+
+
+## SET 2
+### Full Models: Includes s(Longitude,Latitude)
+Includes 2D Lat-Lon smoother to account for spatial structure in the data and fit the spatial variation not explained by the other predictors  
+  * temperature at 600m is STILL significant compared to the previous models, including the Acoustics Only models  
+  * SST, Chlorophyll and SSHsd remain significant  
+
+```{r}
+nbCombLL <- gam(pa ~ s(Longitude, Latitude, k=10) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbCombLL)
+AIC(nbCombLL)
+```
+```{r }
+# model diagnostics
+par(mar=c(4,4,3,3),mfrow = c(2,2))
+gam.check(nbCombLL)
+```
+
+```{r echo=FALSE}
+par(mfrow = c(2, 2), mar=c(4,3,2,1))
+# par(mar=c(4,4,3,3),mfrow = c(4,4))
+plot(nbCombLL,residuals = FALSE, pch = 20, cex = 0.01,
+shade = T, scheme =2, theta= 45, phi=40, shade.col = 'orange', all.terms = TRUE, main='Full Model Set 2 w/Spatial Smoother')
+ 
+```
+
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters. Black dots are all data points(grid centroids)"}  
+par(mfrow = c(1,1))
+plot(nbCombLL, select = 1, scheme = 2, lwd = 2, main='Full Model Set 2 w/Spatial Smoother') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainComb, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+
+### Checking Tweedie for comparison
+Same full model set-up, results in lower explained deviance and higher AIC.
+```{r}
+twCombLL <- gam(pa ~ s(Longitude, Latitude) + s(bath_m, k=3) + s(dist, k=3) + s(d2smt, k=3) +  s(sst, k=3) + s(chla, k=3) + s(temp600, k=3) + s(ssh, k=3) + s(sshsd, k=3) + s(eke, k=3) + s(wavepow, k=3) + offset(log.effort), data = trainComb, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(twCombLL)
+```
+```{r echo=FALSE}
+lowaic = AIC(twCombLL)
+hiaic = AIC(nbCombLL)
+# Explained Deviance
+twFullModLL = round(((twCombLL$null.deviance-twCombLL$deviance)/twCombLL$null.deviance)*100, 2)
+nbFullModLL = round(((nbCombLL$null.deviance-nbCombLL$deviance)/nbCombLL$null.deviance)*100, 2)
+
+table = matrix(NA, nrow = 2, ncol = 3)
+colnames(table) = c("Full Models", "ExpDev", "AIC")
+
+# enter info by row
+table[1,] <- c("Full Tweedie w/ s(Lon,Lat)-twCombLL", paste0(twFullModLL, '%'), round(lowaic, 2))
+table[2,] <- c("Full Neg Bin w/ s(Lon,Lat)-nbCombLL", paste0(nbFullModLL, '%'), round(hiaic,2))
+require(knitr)
+kable(table, caption = "Model Comparison Metrics")
+
+```
+
+
+### Reduced Models
+   * Negative Binomial: higher explained deviance, lower AIC than Tweedie
+   * Removed non-significant variables:   
+      + depth
+      + distance to land
+      + distance to seamount
+      + SST
+      + SSH
+      + eke
+      + wave power
+   * Keep:   
+      + Lon, Lat
+      + chlorophyll
+      + temp at 600 m
+      + SSHsd
+```{r echo=FALSE, eval=FALSE}
+nbCombLLb <- gam(pa ~ s(Longitude, Latitude) + s(chla, k=3) + s(temp600, k=3) + s(sshsd, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbCombLLb)
+
+```
+
+```{r echo=FALSE}
+colnames(trainComb)[31] <- 'Chla'
+colnames(trainComb)[32] <- 'Temp600m'
+colnames(trainComb)[39] <- 'SSHsd'
+```
+```{r}
+nbCombLLb2 <- gam(pa ~ s(Longitude, Latitude) + s(Chla, k=3) + s(Temp600m, k=3) + s(SSHsd, k=3) + offset(log.effort), data = trainComb, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(nbCombLLb2)
+```
+
+```{r}
+#Model Diagnostics
+par(mar = c(4, 4, 3, 3), mfrow = c(2, 2))
+gam.check(nbCombLLb2)
+```
+
+```{r echo=FALSE}
+par(mar=c(4,4,1,3),mfrow = c(2,2))
+# plot(nbCombLLb2, select=1, residuals = FALSE, pch = 20, cex = 0.001,
+# shade = T, scheme = 2, theta= 30, phi=20, shade.col = 'orange', all.terms = TRUE)
+
+plot(nbCombLLb2, select=2, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'orange', all.terms = TRUE, xlab='Chl a (mg m-3)' , main='Best Set 2 Model w/Spatial Smoother-Reduced')
+
+plot(nbCombLLb2, select=3, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'orange', all.terms = TRUE, xlab='Temp at 600 m (°C)', main='Best Set 2 Model w/Spatial Smoother-Reduced')
+
+plot(nbCombLLb2, select=4, residuals = FALSE, pch = 20, shade = T, scheme = 2, shade.col = 'orange', all.terms = TRUE, xlab='SSHsd (m)', main='Best Set 2 Model w/Spatial Smoother-Reduced')
+
+
+```
+
+```{r echo=FALSE, fig.cap = "Purple dots represent acoustically detected encounters. Black dots are all data points." }  
+par(mfrow = c(1,1))
+plot(nbCombLLb2, select = 1, scheme = 2, lwd = 2, main='Best Set 2 Model w/Spatial Smoother-Reduced') #select the first smoother, select = 1
+hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
+hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
+whales <- subset(trainComb, pa >0) #get points for whales to plot
+
+#for 2D smoother plot
+points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+$~$
+
+## Assess Trained Models using Test Data
+```{r tidy=TRUE}
+
+require(magrittr)
+require(dplyr)
+
+#### For nb, no spatial smoother ####
+nbTrainFinal <- trainComb %>% mutate(resid = resid(nbCombb), predict = predict(nbCombb))
+predTrain <- predict.gam(nbCombb, type = 'response', se.fit=TRUE)  #calculate MSE for these 
+#to compare with test set. If they're super different, speaks to the genrality of the model
+nbTrainFinal$fit <- predTrain$fit
+nbTrainFinal$se.fit <- predTrain$se.fit
+#using scale of 0,1,2 makes this hard to interpret
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+nbMSEtrain <- mean((nbTrainFinal$pa - nbTrainFinal$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+
+nbPred <- predict.gam(nbCombb, newdata = testComb, type = 'response', se.fit = TRUE)
+nbTestFinal <- data.frame(testComb, fit = nbPred$fit, se.fit=nbPred$se.fit)
+nbMSEtest <- mean((nbTestFinal$pa - nbTestFinal$fit)^2) #MSE
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+#### For nbCombcLL, with spatial smoother ####
+# pulling the prediction and residual data from the model
+nbTrainLL <- trainComb %>% mutate(resid = resid(nbCombLLb2), predict = predict(nbCombLLb2))
+predTrainLL <- predict.gam(nbCombLLb2, type = 'response')  #calculate MSE for these to compare with test set. If they're super different, speaks to the genrality of the model
+nbTrainLL$fit <- predTrainLL
+
+#using scale of 0,1,2 makes this hard to interpret
+nbMSEtrainLL <- mean((nbTrainLL$pa - nbTrainLL$fit)^2)  #MSE
+# mean(abs((nbTrainFinal$pa - nbTrainFinal$fit)))  #Mean absolute error
+## Calculate MSE AFTER transforming the predictions back to the same scale as the observed data
+colnames(testComb)[31] <- 'Chla'
+colnames(testComb)[32] <- 'Temp600m'
+colnames(testComb)[39] <- 'SSHsd'
+nbPredLL <- predict.gam(nbCombLLb2, newdata = testComb, type = 'response', se.fit = TRUE)
+nbTestLL <- data.frame(testComb, fit = nbPredLL$fit, se.fit=nbPredLL$se.fit)
+nbMSEtestLL <- mean((nbTestLL$pa - nbTestLL$fit)^2) #MSE
+
+# mean(abs((testFinal$pa - testFinal$fit))) #Mean absolute error
+
+# AIC
+nbAIC <- AIC(nbCombb)
+nbAICLL <- AIC(nbCombLLb2)
+
+# Explained Deviance
+nbExpDev = round(((nbCombb$null.deviance-nbCombb$deviance)/nbCombb$null.deviance)*100, 2)
+nbExpDevLL = round(((nbCombLLb2$null.deviance-nbCombLLb2$deviance)/nbCombLLb2$null.deviance)*100, 2)
+
+```
+
+```{r}
+# make summary table of metrics
+
+table = matrix(NA, nrow = 2, ncol = 5)
+colnames(table) = c("Best Models", "ExpDev", "AIC", "MSEtrain", "MSEtest")
+
+# enter info by row
+table[1,] <- c("nbCombb", paste0(nbExpDev, '%'), round(nbAIC, 2), round(nbMSEtrain,3), round(nbMSEtest,3))
+table[2,] <- c("nbCombLLb2 (w/ s(Lon,Lat))", paste0(nbExpDevLL, '%'), round(nbAICLL,2), round(nbMSEtrainLL,3), round(nbMSEtestLL,3))
+require(knitr)
+kable(table, caption = "Negative Binomial Model Summary Metrics")
+
+```
+
+
+## Conclusions
+    
+The final negative binomial 'Combined' model using the combined data set with the spatial smoother yields Chl a, Temp at 600 m, SSHsd and the spatial smoother as significant in explaining the variation in sperm whale encounter. These differ slightly from the significant variables in the models without the spatial smoother, which included SST, chlorophyll, temperature at 600 m, SSH, and SSHsd. Model results showed a gradual increase in sperm whale encounters as SST increased, peaking at 26°C, followed by a gradual decrease as SST increased to 30°C. 
+
+Both sets of Combined models showed sperm whale encounters to have a negative linear relationship with chlorophyll, with encounter rate declining as chlorophyll increases. There are a few outlying values that may be driving this relationship, but it's hard to say for sure. A decline in encounters occurred for values of SSHsd between 0 to approximately 0.015 m before leveling off with a slight increase as SSHsd approached 0.025 m.
+
+Chlorophyll and SSHsd are two variables that are proxies for primary productivity, the former relating to density of phytoplankton and the latter represents variation in sea surface height, with higher values indicating areas of potential upwelling of nutrients. The negative relationship between sperm whale encounter rate and chlorophyll is somewhat counter-intuitive, but the range of values for this variable is so small (most values concentrated between 0.05 and 0.1 mg m-3) that it's not necessarily very informative. The SSHsd ranges between ~0-2.5 cm, with the highest predictions of sperm whale encounters occurring when SSHsd is 0 cm. This indicates that the surrounding SSH (within an 8 km neighborhood) is similar to the location of the whales. Perhaps the stability in SSH represents areas that are less dynamic, which doesn't necessarily mean less productive.
+
+Temperatures at 600 m showed a similar relationship, where encounter rate decreased as the temperature became warmer (from 6 - 6.8°C) and then increased as temperatures reached 7°C and above. This variable also has a spatial relationship within the study area, so it's interesting that it was still significant even after the spatial smoother was included. The temperatures at 600 m appear to increase in a westerly pattern across the study area. This variable relates to the temperature within the depth range of many prey species for sperm whales (primarily squids), so it could represent a gradient within the prey's habitat that is driving prey distribution and hence, sperm whale occurrence.
+```{r fig.cap='Temperature at 600 m as a function of longitude. Temperatures increase towards the western portion of the study area' }
+plot(PmScaled$Longitude, PmScaled$temp600m.r, xlab='Longitude', ylab='Temp at 600 m °C')
+```
+
+
+```{r eval=FALSE, echo=FALSE}
+install.packages("countreg", repos="http://R-Forge.R-project.org")
+library("countreg")
+library("ggplot2")
+
+root1 <- rootogram(nbComb, style = "hanging", plot = FALSE)
+autoplot(root1)
+
+#trying to make plots with raw data :/
+#https://stackoverflow.com/questions/15843654/extracting-data-used-to-make-a-smooth-plot-in-mgcv
+
+```
+
+
+

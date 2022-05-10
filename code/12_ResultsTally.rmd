@@ -24,11 +24,15 @@ nrow(subset(PmCombo, pa>0))
 
 # look3 <- readRDS(here::here( paste0('/output/AllDetectionsGrid-25km-Combined.rda') ))
 PmVis <- readRDS(here::here(  paste0('output/models/',loctype, '/data/SighingOnly_25km_Combined.rda') ))
+
+#includes A999's, not included in table
 PmVisEd <- readRDS(here::here(  paste0('output/models/Combined/data/SighingOnly_25km_EditDup.rda') ))
 
+#sighted acoustic
 aggregate(x = PmVisAc$pa,                # Specify data column
           by = list(PmVisAc$survey),              # Specify group indicator
           FUN = sum)
+#sighted only 
 aggregate(x = PmVisEd$pa,                # Specify data column
           by = list(PmVisEd$survey),              # Specify group indicator
           FUN = sum)
@@ -74,10 +78,11 @@ aggregate(x = test3$pa,                # Specify data column
 ```
 
 
-Foraging and Non-Foraging
+Foraging and Non-Foraging using data saved in 10_PmSDM_Foraging from the train/test sets
 ```{r}
-PmForSum <- readRDS(here::here(  paste0('data/Pm_ForagingOnly.rda') ))
+PmForSum <- readRDS(here::here(  paste0('data/Pm_ForagingOnly2.rda') ))
 PmForSum <- subset(PmForSum, pa >0)
+
 #how many acoustic only encounters?
 PmForAcOnly <- subset(PmForSum, sid==999) 
 sum(PmForAcOnly$pa)
@@ -113,7 +118,7 @@ sum(PmNonForVisAc$pa)
 
 ```{r}
 # Table ####
-table = matrix(NA, nrow = 5, ncol = 2)
+table = matrix(NA, nrow = 6, ncol = 2)
 colnames(table) = c("Encounter Type", "Total")
 
 # enter info by row
@@ -122,6 +127,7 @@ table[2,] <- c("Localized Acoustic", sum(PmAcLoc$pa) )
 table[3,] <- c("Trackline Acoustic", sum(PmAcTrk$pa) )
 table[4,] <- c("Foraging", sum(PmForSum$pa) )
 table[5,] <- c("Non-Foraging", sum(PmNonForSum$pa) )
+table[6,] <- c("Non-Foraging", sum(PmNonForSum$pa) )
 
 require(knitr)
 kable(table, caption = "Encounter Totals")

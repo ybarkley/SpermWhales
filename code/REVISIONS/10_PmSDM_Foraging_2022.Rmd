@@ -102,7 +102,7 @@ loctype2 = 'Comb'
 # PmCombo <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_EDIT.rda') ))
 # PmCombo2 <- readRDS(here::here( paste0('output/models/', loctype, '/data/', 'CompletePm_', gridsize, 'km_', loctype2, '_scaled.rda') ))
 
-PmCombo <- readRDS(here::here(paste0('data/Pm_Combined_2022.rda')))
+PmCombo <- readRDS( here::here(paste0('data/Pm_Combined_2022_v2.rda') ) )
 
 
 # rm(list = ls()[grep("ssh", ls())]) 
@@ -112,7 +112,8 @@ PmCombo <- readRDS(here::here(paste0('data/Pm_Combined_2022.rda')))
 2/7/22 Hello old friend
 A few encounters need to have the click codes changed as a result of closer inspection during ACCURATE click analysis. The changes will be made in PmCombo prior to splitting the train and test data and any foraging/non-foraging analysis.
 Changes are determined by the yellow-highlighted 'click_code' cells in the ACCURATE Project Sheet.
-### 2022: Redo Click Codes
+
+### 2022: Redo Click Codes -> saved as 'v2'
 ```{r}
 PmCombo$click_code[PmCombo$ID == "1303_42_21"] <- "cdckrs"  #(was ckrs, added coda)
 PmCombo$click_code[PmCombo$ID == "1604_30_999"] <- "rs"     #(was s)
@@ -122,6 +123,8 @@ PmCombo$click_code[PmCombo$ID == "1706_2_999"] <- "rs"      #(was r)
 PmCombo$click_code[PmCombo$ID == "1706_41_999"] <- "rs"     #(was s)
 # PmCombo$click_code[PmCombo$ID == "1706_135_999"] <- "ckrs" #not included as separate encounter, was combined with 1706A49 in same cell, which is also ckrs
 PmCombo$click_code[PmCombo$ID == "1303_71_999"] <- "rs"     #(was s)
+
+saveRDS(PmCombo, here::here(paste0('data/Pm_Combined_2022_v2.rda') ))
 
 colnames(PmCombo)[c(18:27, 47:49)] <- c('SST', 'Chla', 'Temp584m', 'WavePower', 'Depth', 'DistShore', 'SSH', 'SSHsd', 'EKE', 'DistSeamt', 'log.Chla', 'log.EKE', 'log.WavePower')
 
@@ -419,18 +422,19 @@ PmNonFor_totalb <- select(PmNonFor_total, pa, ID, nonfor, loc)
 
 # 2022 REVISED MODELS ~~~~~~~
 
-##FORAGE 2022
+## FORAGE 2022
 
 Tried included quarter as both a smoother and a factor -> results were the same.
 ```{r}
 
 # didn't include quarter since sampling is biased
-modForageTW  <- gam(pa ~  s(Longitude, Latitude, k=15) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) +  s(year, k=3) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
+modForageTW  <- gam(pa ~  s(Longitude, Latitude, k=12) + s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + s(year, k=3) + s(array, k=3) + offset(log.effort), data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
 summary(modForageTW) 
 
 #train80a - USED in paper
-modForageTW2  <- gam(pa ~  s(Longitude, Latitude, k=12) +  s(Temp584m, k=3) + s(log.Chla, k=4) + offset(log.effort) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
+modForageTW2  <- gam(pa ~  s(Longitude, Latitude, k=12) +  s(Temp584m, k=3) + s(log.Chla, k=3) + offset(log.effort) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
 summary(modForageTW2) 
+concurvity(modForageTW2, full=FALSE)
 
 #train80d
 modForageTW3  <- gam(pa ~  s(Longitude, Latitude, k=15) + s(DistLand, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + offset(log.effort) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
@@ -449,6 +453,22 @@ par(mar=c(4,4,3,3),mfrow = c(2,2))
 gam.check(modForageTW4)
 
 saveRDS(modForageTW2, here::here(paste0('output/models/Combined/data/2022_revisions/GAM_best_forage.rda') ) )
+
+```
+
+## FORAGE-NO s(x,y)
+```{r}
+modForageTWb  <- gam(pa ~ s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) +  s(year, k=3) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modForageTWb) 
+
+modForageTWc  <- gam(pa ~  s(Temp584m, k=3) + s(SSH, k=3) + offset(log.effort) , data = trainHunt, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modForageTWc) 
+
+modForageNBb  <- gam(pa ~ s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) +  s(year, k=3) , data = trainHunt, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modForageNBb) 
+
+modForageNBc  <- gam(pa ~ s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + offset(log.effort) , data = trainHunt, family = nb, link = 'log', select = TRUE, method = "REML")
+summary(modForageNBc)
 
 ```
 
@@ -477,9 +497,13 @@ dev.off()
 ```
 
 ### Foraging 2D smoother plot
+
+** Save using the R Export and choose 1200 x 800 to get smaller black dots.
 ```{r eval=FALSE, echo=FALSE, fig.cap = "Foraging Model: Contour plot of spatial smoother. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}
 
-png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Foraging_Smoother2Dplot_16km.png", width = 9, height = 5, res = 300, units = "in") # 8x6"
+png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Foraging_Smoother2Dplot_16kmB.png", width = 32, height = 16, res = 300, units = "cm") # 8x6"
+
+# pdf(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/Foraging_Smoother2Dplot_16kmB.pdf", width = 7, height = 5)
 
 par(mfrow = c(1,1),mar=c(4.5,5,2,1))
 
@@ -490,9 +514,9 @@ hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, ha
 whales <- subset(trainHunt, pa >0) #get points for whales to plot
 
 #for 2D smoother plot
-points(whales$Longitude, whales$Latitude, pch = 16, col='#000DFF', #mediumslateblue
+points(whales$Longitude, whales$Latitude, pch = 16, col='deepskyblue', #mediumslateblue #000DFF
        lwd=1.25, cex=1.2)
-points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.001, col='white')
 
 dev.off()
 ```
@@ -528,6 +552,8 @@ gam.check(modNonForage)
 #train nonforage 80a - AVED and USED in paper
 modNonForage   <- gam(pa ~  s(Longitude, Latitude, k=10) + s(SSHsd, k=3) + offset(log.effort) , data = trainNonFor, family = tw, link = 'log', select = TRUE, method = "REML")
 summary(modNonForage)
+concurvity(modNonForage, full=FALSE)
+
 
 saveRDS(modNonForage, here::here(paste0('output/models/Combined/data/2022_revisions/GAM_best_nonforage.rda') ) )
 
@@ -544,6 +570,15 @@ gam.check(modNonForageTW2)
 
 
 
+
+```
+## NONFORAGE-NO s(x,y)
+```{r}
+modNonForageTWb  <- gam(pa ~ s(Depth, k=3) + s(DistShore, k=3)  + s(DistSeamt, k=3) +  s(SST, k=3) + s(log.Chla, k=3) + s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + s(log.EKE, k=3) + s(log.WavePower, k=3) + offset(log.effort) +  s(year, k=3) , data = trainNonFor, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modNonForageTWb) 
+
+modNonForageTWc  <- gam(pa ~ s(Temp584m, k=3) + s(SSH, k=3) + s(SSHsd, k=3) + offset(log.effort) , data = trainNonFor, family = tw, link = 'log', select = TRUE, method = "REML")
+summary(modNonForageTWc) 
 
 ```
 
@@ -566,6 +601,8 @@ dev.off()
 ```
 
 ### NonForaging 2D smoother plot
+** Save using the R Export and choose 1200 x 800 to get smaller black dots.
+
 ```{r eval=FALSE, echo=FALSE, fig.cap = "Foraging Model: Contour plot of spatial smoother. Purple dots represent acoustically detected encounters. Black dots are all data points with effort included in the model.", fig.width=6, fig.height=4}
 
 png(file = "C:/Users/yvers/OneDrive/Documents/Publications/2022_FiRS_SDMs/figures/NonForaging_Smoother2Dplot_16km.png", width = 9, height = 5, res = 300, units = "in") # 8x6"
@@ -579,9 +616,9 @@ hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, ha
 whales <- subset(trainNonFor, pa >0) #get points for whales to plot
 
 #for 2D smoother plot
-points(whales$Longitude, whales$Latitude, pch = 16, col='#000DFF', #mediumslateblue
+points(whales$Longitude, whales$Latitude, pch = 16, col='deepskyblue', #mediumslateblue
        lwd=1.25, cex=1.2)
-points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.001, col = 'white')
 
 dev.off()
 ```
@@ -711,7 +748,7 @@ whales <- subset(trainNonFor, pa >0) #get points for whales to plot
 #for 2D smoother plot
 points(whales$Longitude, whales$Latitude, pch = 16, col='#000DFF', #mediumslateblue
        lwd=1.25, cex=1.2)
-points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.1)
 
 dev.off()
 ```

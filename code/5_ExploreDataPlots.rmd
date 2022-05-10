@@ -125,7 +125,6 @@ SwEnvData_p = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2, SwEnvData_ma
 SwEnvData_p2 = as.data.frame(rbind(SwEnvData_mapb1, SwEnvData_mapb2))
 SwEnvData_mapb = rbind(SwEnvData_p, SwEnvData_a)
 
-
 hawaiiMap <- readRDS(here::here(paste0('data/hawaiiMap.rda')))
 hawaiiMap$Longitude2 = ifelse(hawaiiMap$Longitude<1, hawaiiMap$Longitude+360, hawaiiMap$Longitude)
 whales <- subset(SwEnvData_mapb, pa >0) #get points for whales to plot
@@ -133,16 +132,62 @@ whales <- subset(SwEnvData_mapb, pa >0) #get points for whales to plot
 #for 2D smoother plot
 points(whales$Longitude, whales$Latitude, pch = 20, col='blueviolet', lwd=2, cex=0.75)
 points(hawaiiMap$Longitude2, hawaiiMap$Latitude, pch=20, cex = 0.5)
+```
+
+#Load GPS data for tracklines
+```{r}
+surveynum = 1706
+gridEffort <- readRDS(here::here( paste0('output/gridEffort/', gridsize, ' km-', loctype, '/gridEffort', surveynum, '_', gridsize, 'km_', loctype2, '_raw.rda') ))
+
+#Nov 29
+gps1641 <- gridEffort$gps
+gps1641$year <- 2010
+gps1303 <- gridEffort$gps
+gps1303$year <- 2013
+gps1604 <- gridEffort$gps
+gps1604$year <- 2016
+gps1705 <- gridEffort$gps
+gps1705$year <- 2017
+gps1706 <- gridEffort$gps
+gps1706$year <- 2017
+whalePts <- subset(SwEnvData_mapb, pa >0)
+```
+
+```{r}
+#"#d64161", "#ff7b25",  "#86af49", "#6b5b95"
+ggplot(gps1641, aes(Longitude, Latitude)) +
+    geom_point(color='gray66', size=0.5, pch=16) +
+  geom_point(gps1303, mapping=aes(Longitude, Latitude),color='gray66',size=0.5, pch=16) +
+  geom_point(gps1604, mapping=aes(Longitude, Latitude),color='gray66',size=0.5, pch=16) +
+  geom_point(gps1705, mapping=aes(Longitude, Latitude),color='gray66',size=0.5, pch=16) +
+  geom_point(gps1706, mapping=aes(Longitude, Latitude),color='gray66',size=0.5, pch=16) +   theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, color=factor(year)), size=1.5) + 
+  scale_color_manual(values = c("#0040ff", "#ff7b25",  "#00e6e6", "#ff1ac6"), name='Year') + 
+  scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
+  scale_x_continuous(name='Longitude') +
+  geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = '#86af49', color = 'black') +
+  coord_fixed(1) +
+  ggtitle("All Sperm Whale Encounters") + 
+      scalebar(x.min = 180, x.max = 185,
+                   y.min = 16, y.max = 20, dist = 250, dist_unit = "km",
+             transform = TRUE, model = "WGS84")
+  
+ggsave(paste0(dir, '/SW_TracklineMap.png'), width=8, height = 6, units='in', dpi=300)
 
 ```
+
+
+#Map of all sperm whales
 ```{r}
 ggplot(SwEnvData_mapb, aes(Longitude, Latitude)) +
   geom_point(aes(color=as.factor(year)), size=1, pch=16) +
   geom_point(SwEnvData_p, mapping=aes(Longitude, Latitude, shape=factor(enctype)))  +
   theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
   scale_y_continuous(name='Latitude',breaks=seq(0,30,2)) +
   scale_x_continuous(name='Longitude') +  #, breaks=round(Longitude, 1) ) +
-   scale_shape_manual(values=c(8, 17, 15, 1),name='Enc Type', labels=c("Ac_Localized", "Ac_Unlocalized","Sighting")) +
+   scale_shape_manual(values=c(8, 17, 15, 1),name='Enc Type', labels=c("Ac_Localized", "Ac_Trackline","Sighting")) +
  scale_color_manual(values = c("#d64161", "#ff7b25",  "#86af49", "#6b5b95"), name='Year') + #feb236", "#92a8d1",
   geom_polygon(data = hawaiiMap, aes(x = Longitude2, y = Latitude, group = group), fill = 'black', color = 'black') +
   coord_fixed(1) +
@@ -903,11 +948,11 @@ ggsave(paste0(dir, 'SW_ClickType_social.png'), width=8, height = 6, units='in', 
 ```
 
 
-#Clicks vs Group size
+## Clicks vs Group size
 ```{r}
 # plot(SwEnvData_mapb3$cpm, SwEnvData_mapb3$grpsize, xlab='Clicks per Minute', ylab='Group Size')
 
-SwEnvData_mapb4 <- filter(SwEnvData_mapb3, cpm != 'Inf')
+SwEnvData_mapb4 <- filter(SwEnvData_mapb, cpm != 'Inf')
 mdlclick <- lm(SwEnvData_mapb4$grpsize ~ SwEnvData_mapb4$cpm)
 pvalmdlclick = round(summary(mdlclick)$coefficients[2,4],5)
 r2mdlclick = summary(mdlclick)$adj.r.squared
@@ -915,7 +960,7 @@ r2mdlclick = summary(mdlclick)$adj.r.squared
 plotOrder <- order(SwEnvData_mapb4$cpm)
 cint <- as.data.frame(predict(mdlclick, interval = "confidence"))
 
-ggplot(SwEnvData_mapb3, aes(cpm, grpsize)) +
+ggplot(SwEnvData_mapb, aes(cpm, grpsize)) +
   stat_summary(fun.data = mean_cl_normal) +
   geom_smooth(method = 'lm') +
   geom_point(aes(shape =click_grp, color =as.factor(survey)), size=3) +#, color = 'blue') +
